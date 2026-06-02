@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Garden Gate</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --panel: #111111;
+    --border: #222222;
+    --accent: #c8f135;
+    --accent-dim: #8aaa1f;
+    --text: #f0f0f0;
+    --muted: #555;
+    --red: #ff4444;
+    --orange: #ff9900;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,241,53,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,241,53,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .container {
+    width: min(420px, 95vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  /* Header */
+  .header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .label-top {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .title {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  /* Status bar */
+  .status-bar {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+
+  .status-dot.ready {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .status-dot.busy {
+    background: var(--orange);
+    box-shadow: 0 0 8px var(--orange);
+    animation: pulse 0.8s infinite;
+  }
+
+  .status-dot.error {
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+  }
+
+  .status-text { flex: 1; }
+
+  /* Main button */
+  .gate-btn {
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    transition: transform 0.15s, border-color 0.3s, box-shadow 0.3s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  .gate-btn::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    border: 1px solid transparent;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .gate-btn:not(:disabled):active {
+    transform: scale(0.94);
+  }
+
+  .gate-btn.ready {
+    border-color: var(--accent);
+    box-shadow: 0 0 40px rgba(200,241,53,0.12), inset 0 0 30px rgba(200,241,53,0.04);
+  }
+
+  .gate-btn.ready::before {
+    border-color: rgba(200,241,53,0.15);
+    box-shadow: 0 0 60px rgba(200,241,53,0.08);
+  }
+
+  .gate-btn.busy {
+    border-color: var(--orange);
+    box-shadow: 0 0 40px rgba(255,153,0,0.2);
+    pointer-events: none;
+  }
+
+  .gate-btn.error {
+    border-color: var(--red);
+    box-shadow: 0 0 30px rgba(255,68,68,0.15);
+  }
+
+  .gate-btn:disabled { cursor: not-allowed; opacity: 0.7; }
+
+  /* Gate icon */
+  .gate-icon {
+    transition: transform 0.3s;
+  }
+
+  .gate-btn.busy .gate-icon {
+    animation: spin 1.5s linear infinite;
+  }
+
+  .btn-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    transition: color 0.3s;
+  }
+
+  .gate-btn.ready .btn-label { color: var(--accent); }
+  .gate-btn.busy .btn-label { color: var(--orange); }
+  .gate-btn.error .btn-label { color: var(--red); }
+
+  /* Log */
+  .log {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    min-height: 36px;
+    line-height: 1.6;
+  }
+
+  .log .entry { display: flex; gap: 10px; }
+  .log .ts { color: #333; flex-shrink: 0; }
+  .log .msg { }
+  .log .ok { color: var(--accent); }
+  .log .err { color: var(--red); }
+
+  /* Footer */
+  .footer {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #2a2a2a;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <span class="label-top">Home Access</span>
+    <span class="title">Garden Gate</span>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Initialising...</span>
+  </div>
+
+  <button class="gate-btn" id="gateBtn" onclick="triggerGate()" disabled>
+    <svg class="gate-icon" id="gateIcon" width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <!-- Gate SVG icon -->
+      <rect x="4" y="8" width="4" height="48" rx="2" fill="currentColor" opacity="0.6"/>
+      <rect x="56" y="8" width="4" height="48" rx="2" fill="currentColor" opacity="0.6"/>
+      <!-- Left gate panel -->
+      <rect x="10" y="12" width="20" height="40" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="10" y1="22" x2="30" y2="22" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <line x1="10" y1="32" x2="30" y2="32" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <line x1="10" y1="42" x2="30" y2="42" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <!-- Right gate panel -->
+      <rect x="34" y="12" width="20" height="40" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="34" y1="22" x2="54" y2="22" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <line x1="34" y1="32" x2="54" y2="32" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <line x1="34" y1="42" x2="54" y2="42" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      <!-- Handles -->
+      <circle cx="29" cy="32" r="2" fill="currentColor"/>
+      <circle cx="35" cy="32" r="2" fill="currentColor"/>
+    </svg>
+    <span class="btn-label" id="btnLabel">Loading</span>
+  </button>
+
+  <div class="log" id="log">
+    <div class="entry"><span class="ts">--:--:--</span><span class="msg">Awaiting connection...</span></div>
+  </div>
+
+  <div class="footer">Shelly 1 Mini Gen3 · cc8da2468a80</div>
+
+</div>
+
+<script>
+  // ── CONFIG ──────────────────────────────────────────────────────────
+  const CLOUD_SERVER = 'https://shelly-166-eu.shelly.cloud';
+  const AUTH_KEY     = 'MmViMWM3dWlkCBCCA77961F4981556841AF34DD2BA501BB1059A3DACBA6F230D8F8C49D129EFEE00ED00BE2CEF8A';
+  const DEVICE_ID    = 'cc8da2468a80';
+  const LOCAL_IP     = '192.168.1.13';
+  // ────────────────────────────────────────────────────────────────────
+
+  const btn       = document.getElementById('gateBtn');
+  const btnLabel  = document.getElementById('btnLabel');
+  const statusDot = document.getElementById('statusDot');
+  const statusTxt = document.getElementById('statusText');
+  const logEl     = document.getElementById('log');
+  const icon      = document.getElementById('gateIcon');
+
+  function ts() {
+    return new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+
+  function addLog(msg, type='') {
+    logEl.innerHTML = `<div class="entry"><span class="ts">${ts()}</span><span class="msg ${type}">${msg}</span></div>`;
+  }
+
+  function setState(state) {
+    btn.className = `gate-btn ${state}`;
+    statusDot.className = `status-dot ${state}`;
+    switch(state) {
+      case 'ready':
+        btnLabel.textContent = 'Open / Close';
+        statusTxt.textContent = 'Ready';
+        btn.disabled = false;
+        icon.style.color = 'var(--accent)';
+        break;
+      case 'busy':
+        btnLabel.textContent = 'Sending...';
+        statusTxt.textContent = 'Sending command...';
+        btn.disabled = true;
+        icon.style.color = 'var(--orange)';
+        break;
+      case 'error':
+        btnLabel.textContent = 'Retry';
+        statusTxt.textContent = 'Error — tap to retry';
+        btn.disabled = false;
+        icon.style.color = 'var(--red)';
+        break;
+    }
+  }
+
+  // Try local first (fast, on home WiFi), fall back to Cloud
+  async function triggerGate() {
+    setState('busy');
+    addLog('Sending toggle command...');
+
+    // 1. Try local network first (Gen3 RPC)
+    try {
+      const localUrl = `http://${LOCAL_IP}/rpc/Switch.Toggle?id=0`;
+      const res = await Promise.race([
+        fetch(localUrl, { method: 'GET' }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500))
+      ]);
+      if (res.ok) {
+        addLog('✓ Gate toggled via local network', 'ok');
+        setState('ready');
+        return;
+      }
+    } catch(e) {
+      addLog('Local unreachable, trying cloud...');
+    }
+
+    // 2. Fall back to Shelly Cloud API
+    try {
+      const endpoint = `${CLOUD_SERVER}/device/relay/control`;
+      const body = new URLSearchParams({
+        auth_key: AUTH_KEY,
+        id:       DEVICE_ID,
+        channel:  '0',
+        turn:     'toggle'
+      });
+      const res = await Promise.race([
+        fetch(endpoint, { method: 'POST', body }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+      ]);
+      const data = await res.json();
+      if (data.isok || res.ok) {
+        addLog('✓ Gate toggled via cloud', 'ok');
+        setState('ready');
+      } else {
+        throw new Error(data.errors?.detail || 'Cloud error');
+      }
+    } catch(e) {
+      addLog(`✗ Failed: ${e.message}`, 'err');
+      setState('error');
+    }
+  }
+
+  // Init
+  setState('ready');
+  addLog('Ready — tap button to toggle gate');
+</script>
+</body>
+</html>
