@@ -633,7 +633,7 @@
       boss: { x: W / 2, y: FRONT_Y - rows * ROW_GAP - 110, hp: bossHp, maxHp: bossHp, alive: true, flash: 0, slamT: 5, slam: null, phase: 0, sway: 0 },
       shake: 0, flashSky: 0, lightning: null, nextThunder: rnd(5, 10),
       embers: Array.from({ length: 40 }, () => ({ x: rnd(0, W), y: rnd(0, H), v: rnd(10, 30), ph: rnd(0, 10) })),
-      hint: L === 1 ? 6 : 0,
+      hint: L === 1 ? 6 : 0, banner: null,
     };
   }
   function spawnEnemy(kind, x, y, u) {
@@ -697,6 +697,7 @@
   function damageEnemy(e, d) {
     if (e.dead) return;
     e.hp -= d; e.flash = 0.07;
+    if (e.kind === 'giant' || e.kind === 'brute') e.dmgAcc = (e.dmgAcc || 0) + d;
     if (e.hp <= 0) killEnemy(e);
   }
   function killEnemy(e) {
@@ -705,7 +706,7 @@
     S.kills++; S.coins += k.coin * UNIT_WORTH; S.meteorCharge = Math.min(S.meteorNeed, S.meteorCharge + (e.kind === 'giant' ? 15 : e.kind === 'brute' ? 6 : 2));
     burst(e.x, e.y - 8, '#ff4a50', e.kind === 'giant' ? 40 : e.kind === 'brute' ? 18 : 8, 120, 0.6);
     if (e.kind === 'giant') { boom(e.x, e.y - 30, 60); sfx.boom(); S.shake = 12; floatText(e.x, e.y - 90, 'GIANT SLAIN', '#ffd23f', 20); }
-    S.corpses.push({ kind: e.kind, k: e.k, x: e.x, y: e.y, life: 0.45 });
+    S.corpses.push({ kind: e.kind, k: e.k, x: e.x, y: e.y, life: 0.6, dir: Math.random() < 0.5 ? -1 : 1 });
     if (S.corpses.length > 80) S.corpses.shift();
     if (e.kind === 'bomber') { explodeAt(e.x, e.y - 10, 50, 6 * S.u, false); }
     if (e.kind === 'brute' || e.kind === 'giant' || Math.random() < 0.03) {
@@ -730,7 +731,7 @@
   }
   function hitBoss(d) {
     const b = S.boss; if (!b.alive || S.over) return;
-    b.hp -= d; b.flash = 0.06;
+    b.hp -= d; b.flash = 0.06; b.dmgAcc = (b.dmgAcc || 0) + d;
     if (b.phase === 0 && b.hp < b.maxHp * 0.66) { b.phase = 1; summon(); }
     if (b.phase === 1 && b.hp < b.maxHp * 0.33) { b.phase = 2; summon(); }
     if (b.hp <= 0) { b.alive = false; boom(b.x, b.y - 30, 70); boom(b.x - 20, b.y - 10, 40); sfx.boom(); S.coins += 40 * S.L; endLevel('win'); }
@@ -817,6 +818,14 @@
     for (const e of S.enemies) {
       if (e.dead) continue;
       e.flash = Math.max(0, e.flash - dt);
+      if (e.dmgAcc) {
+        e.numT = (e.numT || 0) - dt;
+        if (e.numT <= 0) { e.numT = 0.3; floatText(e.x + rnd(-14, 14), e.y - (e.kind === 'giant' ? 120 : 80) * depth(e.y), String(Math.round(e.dmgAcc)), '#ffe08a', 13); e.dmgAcc = 0; }
+      }
+      if (e.kind === 'giant' && !e.flee) {
+        if (!e.announced && e.y > 40) { e.announced = true; S.banner = { text: 'A GIANT APPROACHES', life: 2.2 }; sfx.warn(); }
+        if (e.y > 0 && Math.sin(S.t * 5 + e.ph) > 0.96) { S.shake = Math.max(S.shake, 3); if (canPlay('stomp', 350)) tone(60, 0.15, 'sine', 0.12, -15); }
+      }
       if (e.flee) { e.y -= 150 * dt; continue; }
       e.y += e.kind === 'bomber' && e.y > -10 ? sp * 2.6 : sp;
       if (!live) continue;
@@ -855,6 +864,8 @@
     // boss
     const b = S.boss;
     b.flash = Math.max(0, b.flash - dt);
+    if (b.dmgAcc) { b.numT = (b.numT || 0) - dt; if (b.numT <= 0) { b.numT = 0.25; floatText(b.x + rnd(-24, 24), b.y - 150 * depth(b.y), String(Math.round(b.dmgAcc)), '#ffcf7a', 15); b.dmgAcc = 0; } }
+    if (b.alive && !b.announced && b.y > 40) { b.announced = true; S.banner = { text: 'THE WARLORD ARRIVES', life: 2.4 }; sfx.warn(); }
     if (b.alive && live) {
       b.y += sp; b.sway += dt;
       if (b.y > 40) {
@@ -1086,6 +1097,7 @@
     for (let i = S.corpses.length - 1; i >= 0; i--) { const c = S.corpses[i]; c.life -= dt; if (c.life <= 0) S.corpses.splice(i, 1); }
     for (const e of S.embers) { e.y -= e.v * dt; e.x += Math.sin(S.t * 1.5 + e.ph) * 8 * dt; if (e.y < -5) { e.y = H + 5; e.x = rnd(0, W); } }
     S.shake = Math.max(0, S.shake - dt * 22);
+    if (S.banner) { S.banner.life -= dt; if (S.banner.life <= 0) S.banner = null; }
     S.flashSky = Math.max(0, S.flashSky - dt * 1.6);
     S.nextThunder -= dt;
     if (S.nextThunder <= 0) {
@@ -1243,7 +1255,9 @@
       const spr = SPRITES[e.kind];
       const f = ((S.t * 6 + e.ph) | 0) % 2;
       if (e.flee) { ctx.globalAlpha = clamp((e.y + 40) / 120, 0, 1); }
-      drawSpr(e.flash > 0 ? spr.white : spr[f], e.x + Math.sin(S.t * 4 + e.ph) * 0.8, e.y, e.k);
+      const ex = e.x + Math.sin(S.t * 4 + e.ph) * 0.8;
+      drawSpr(spr[f], ex, e.y, e.k);
+      if (e.flash > 0) { const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.4; drawSpr(spr.white, ex, e.y, e.k); ctx.globalAlpha = ga; }
       ctx.globalAlpha = 1;
       if (e.kind === 'bomber' && !e.flee) {
         const s = depth(e.y) * e.k;
@@ -1258,9 +1272,9 @@
     }
     if (!bossDrawn) drawBoss();
     for (const c of S.corpses) {
-      ctx.globalAlpha = c.life / 0.45 * 0.8;
+      ctx.globalAlpha = Math.min(1, c.life / 0.6 * 1.2);
       const s = depth(c.y), spr = SPRITES[c.kind][0];
-      ctx.save(); ctx.translate(px(c.x, c.y), c.y); ctx.scale(1, 0.4 + c.life); drawSprRaw(spr, s * c.k); ctx.restore();
+      ctx.save(); ctx.translate(px(c.x, c.y), c.y); ctx.rotate((1 - c.life / 0.6) * c.dir * 1.35); drawSprRaw(spr, s * c.k); ctx.restore();
       ctx.globalAlpha = 1;
     }
   }
@@ -1272,7 +1286,8 @@
     // aura
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; drawGlow(GLOW.red, px(x, y), y - 48 * depth(y), 180 * depth(y), 0.35 + 0.1 * Math.sin(S.t * 3)); ctx.restore();
     const spr = SPRITES.boss;
-    drawSpr(b.flash > 0 ? spr.white : spr[((S.t * 3) | 0) % 2], x, y, BOSS_K);
+    drawSpr(spr[((S.t * 3) | 0) % 2], x, y, BOSS_K);
+    if (b.flash > 0) { ctx.globalAlpha = 0.4; drawSpr(spr.white, x, y, BOSS_K); ctx.globalAlpha = 1; }
     const s = depth(Math.max(0, y)) * BOSS_K, sx = px(x, y), by = y - 140 * s;
     if (y > -100) text('WARLORD', sx, by - 8, 11, '#ffcfb0', 'rgba(0,0,0,0.8)', '"Barlow Condensed", sans-serif', 3);
   }
@@ -1463,6 +1478,15 @@
       ctx.font = '700 13px "Barlow Condensed", sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(wpn.name.toUpperCase(), 36, y - 3);
       ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(36, y + 5, 98, 3);
       ctx.fillStyle = wpn.color; ctx.fillRect(36, y + 5, 98 * clamp(S.weaponT / WEAPON_TIME, 0, 1), 3);
+    }
+    if (S.banner) {
+      const bn = S.banner, a = clamp(Math.min(bn.life, 2.4 - bn.life) * 3, 0, 1);
+      ctx.globalAlpha = a;
+      const band = ctx.createLinearGradient(0, 0, W, 0);
+      band.addColorStop(0, 'rgba(90,0,8,0)'); band.addColorStop(0.5, 'rgba(90,0,8,0.85)'); band.addColorStop(1, 'rgba(90,0,8,0)');
+      ctx.fillStyle = band; ctx.fillRect(0, 150, W, 40);
+      text(bn.text, W / 2 + (1 - a) * 30, 170, 19, '#ffd8c8', '#2a0004');
+      ctx.globalAlpha = 1;
     }
     if (S.hint > 0) {
       ctx.globalAlpha = clamp(S.hint, 0, 1);
