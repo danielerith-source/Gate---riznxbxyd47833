@@ -166,8 +166,10 @@
   const W = 400, H = 720, SCALE = 2, RES = 4;
   const PLAYER_Y = 630, BARRIER_Y = 452, LINE_Y = PLAYER_Y - 18;
   const LANE_L = [6, 98], LANE_R = [302, 394], MID = [110, 290];
-  const COLS = 5, COL_W = (MID[1] - MID[0]) / 5, ROW_GAP = 32, FRONT_Y = 190, FOE_K = 2.3, BOSS_K = 1.5;
-  const kindK = kind => kind === 'brute' ? 1.45 : FOE_K;
+  const COLS = 3, COL_W = (MID[1] - MID[0]) / 3, ROW_GAP = 52, FRONT_Y = 120, FOE_K = 4, BOSS_K = 2.1;
+  const TARGET_Y = 105; // enemies can only be hit once they are properly on screen, below the HUD
+  const SIZE_K = { brute: 2.1, giant: 2.3, bomber: 3.8 };
+  const kindK = kind => SIZE_K[kind] || FOE_K;
   const TILE_H = 44, TILE_SPEED = 175;
   const BASE_RATE = 3.5, MAX_SHOOTERS = 24, ARROW_SPEED = 820;
   const TAU = Math.PI * 2;
@@ -375,6 +377,7 @@
   bakeKind('grunt', Object.assign({}, FOE, { weapon: 'spear', shield: true, shieldColor: '#8a1018', shieldLight: '#e04048', plume: '#2a0a0c' }), 1);
   bakeKind('shield', Object.assign({}, FOE, { armor: true, metal: '#9aa3ad', shield: 'tower', shieldColor: '#5e0b12', shieldLight: '#c42a33', weapon: 'spear' }), 1.12);
   bakeKind('archer', Object.assign({}, FOE, { cloth: '#7a1a22', hood: '#4a1015', weapon: 'bow' }), 1);
+  bakeKind('giant', Object.assign({}, FOE, { cloth: '#3a0d12', light: '#8a2a30', dark: '#14040a', armor: true, metal: '#4d535e', weapon: 'axe', shield: 'tower', shieldColor: '#24060a', shieldLight: '#7a1820', eyes: '#ff3b30', horns: true }), 3.2);
   bakeKind('brute', Object.assign({}, FOE, { cloth: '#8e1820', armor: true, metal: '#6d7480', weapon: 'axe', eyes: '#ffb03a', horns: true }), 1.9);
   bakeKind('bomber', Object.assign({}, FOE, { cloth: '#b5512a', light: '#ff9a62', dark: '#5a2410', hood: '#3b1d10', bomb: true }), 0.95);
   bakeKind('boss', Object.assign({}, FOE, { cloth: '#a0141d', armor: true, metal: '#8a6d4a', weapon: 'axe', shield: true, shieldColor: '#4a070c', shieldLight: '#d63a40', cape: '#5a0b10', horns: true, eyes: '#ffdd55' }), 3.4);
@@ -550,7 +553,9 @@
     archer: { hp: 1.2, r: 6, contact: 1, coin: 2 },
     brute: { hp: 18, r: 12, contact: 6, coin: 10 },
     bomber: { hp: 2, r: 6, contact: 10, coin: 3 },
+    giant: { hp: 70, r: 13, contact: 12, coin: 25 },
   };
+  const UNIT_WORTH = 3; // each on-screen raider stands for a squad of three
   const tAdd = v => ({ kind: 'add', v });
   const tMul = v => ({ kind: 'mul', v });
   const tWep = w => ({ kind: 'weapon', w });
@@ -590,10 +595,16 @@
   }
 
   function newLevel(L) {
-    const rows = Math.min(60, Math.round((10 + 4 * L) * 1.1));
-    const u = 1.6 * (1 + 0.4 * (L - 1));
+    const rows = Math.min(44, 8 + 3 * L);
+    const u = 3 * Math.pow(L, 1.35);
     const enemies = [];
+    const giantEvery = Math.max(5, 9 - L);
     for (let r = 0; r < rows; r++) {
+      if (r >= 4 && r % giantEvery === giantEvery - 1) {
+        // a giant fills the whole row, with an empty row behind for its bulk
+        enemies.push(spawnEnemy('giant', W / 2 + rnd(-10, 10), FRONT_Y - r * ROW_GAP, u));
+        r++; continue;
+      }
       for (let c = 0; c < COLS; c++) {
         let kind = 'grunt';
         const q = Math.random();
@@ -602,10 +613,10 @@
         else if (L >= 3 && r >= 4 && q < Math.min(0.06, 0.012 * L)) kind = 'brute';
         else if (L >= 2 && r >= 3 && q < Math.min(0.16, 0.04 + 0.02 * L)) kind = 'archer';
         else if (q < 0.05 && L >= 2) kind = 'shield';
-        enemies.push(spawnEnemy(kind, MID[0] + COL_W / 2 + c * COL_W + rnd(-2.5, 2.5) + (r % 2 ? 5 : -5), FRONT_Y - r * ROW_GAP, u));
+        enemies.push(spawnEnemy(kind, MID[0] + COL_W / 2 + c * COL_W + rnd(-4, 4) + (r % 2 ? 6 : -6), FRONT_Y - r * ROW_GAP, u));
       }
     }
-    const bossHp = Math.round(160 * Math.pow(L, 1.55));
+    const bossHp = Math.round(450 * Math.pow(L, 1.5));
     const [lp, rp] = vaultPlan(L);
     const big = L % 2 === 1;
     const startArmy = 1 + 3 * save.up.squad;
@@ -619,7 +630,7 @@
       meteorCharge: 0, meteorNeed: Math.max(22, 45 - 4 * save.up.meteor), meteor: null,
       lanes: [makeLane(LANE_L, lp, big ? 'gold' : 'blue'), makeLane(LANE_R, rp, big ? 'blue' : 'gold')],
       speed: 10 + 1.0 * L,
-      boss: { x: W / 2, y: FRONT_Y - rows * ROW_GAP - 80, hp: bossHp, maxHp: bossHp, alive: true, flash: 0, slamT: 5, slam: null, phase: 0, sway: 0 },
+      boss: { x: W / 2, y: FRONT_Y - rows * ROW_GAP - 110, hp: bossHp, maxHp: bossHp, alive: true, flash: 0, slamT: 5, slam: null, phase: 0, sway: 0 },
       shake: 0, flashSky: 0, lightning: null, nextThunder: rnd(5, 10),
       embers: Array.from({ length: 40 }, () => ({ x: rnd(0, W), y: rnd(0, H), v: rnd(10, 30), ph: rnd(0, 10) })),
       hint: L === 1 ? 6 : 0,
@@ -680,7 +691,7 @@
   let buckets = Array.from({ length: COLS }, () => []);
   function rebuildBuckets() {
     for (const b of buckets) b.length = 0;
-    for (const e of S.enemies) if (!e.dead && !e.flee && e.y > -30) buckets[colOf(e.x)].push(e);
+    for (const e of S.enemies) if (!e.dead && !e.flee && e.y > TARGET_Y) buckets[colOf(e.x)].push(e);
   }
 
   function damageEnemy(e, d) {
@@ -691,12 +702,13 @@
   function killEnemy(e) {
     e.dead = true;
     const k = KINDS[e.kind];
-    S.kills++; S.coins += k.coin; S.meteorCharge = Math.min(S.meteorNeed, S.meteorCharge + (e.kind === 'brute' ? 4 : 1));
-    burst(e.x, e.y - 8, '#ff4a50', e.kind === 'brute' ? 14 : 5, 90, 0.5);
+    S.kills++; S.coins += k.coin * UNIT_WORTH; S.meteorCharge = Math.min(S.meteorNeed, S.meteorCharge + (e.kind === 'giant' ? 15 : e.kind === 'brute' ? 6 : 2));
+    burst(e.x, e.y - 8, '#ff4a50', e.kind === 'giant' ? 40 : e.kind === 'brute' ? 18 : 8, 120, 0.6);
+    if (e.kind === 'giant') { boom(e.x, e.y - 30, 60); sfx.boom(); S.shake = 12; floatText(e.x, e.y - 90, 'GIANT SLAIN', '#ffd23f', 20); }
     S.corpses.push({ kind: e.kind, k: e.k, x: e.x, y: e.y, life: 0.45 });
     if (S.corpses.length > 80) S.corpses.shift();
-    if (e.kind === 'bomber') { explodeAt(e.x, e.y, 30, 6 * S.u, false); }
-    if (e.kind === 'brute' || Math.random() < 0.012) {
+    if (e.kind === 'bomber') { explodeAt(e.x, e.y - 10, 50, 6 * S.u, false); }
+    if (e.kind === 'brute' || e.kind === 'giant' || Math.random() < 0.03) {
       const pool = ['triple', 'fire', 'ballista', ...(S.L >= 3 ? ['storm'] : [])];
       S.crates.push({ x: e.x, y: e.y, w: pool[(Math.random() * pool.length) | 0], bob: 0 });
     }
@@ -708,7 +720,7 @@
     for (let c = colOf(x - r); c <= colOf(x + r); c++) {
       for (const e of buckets[c]) if (!e.dead && Math.hypot(e.x - x, (e.y - y) * 1.3) < r + e.r) damageEnemy(e, dmg);
     }
-    if (S.boss.alive && Math.abs(S.boss.x - x) < r + 26 && Math.abs(S.boss.y - 20 - y) < r + 30) hitBoss(dmg);
+    if (S.boss.alive && Math.abs(S.boss.x - x) < r + 40 && Math.abs(S.boss.y - 40 - y) < r + 50) hitBoss(dmg);
     if (hitsGates) for (const ln of S.lanes) if (!ln.open && !ln.done && x + r > ln.x0 && x - r < ln.x1 && Math.abs(y - BARRIER_Y - 15) < r + 16) hitGate(ln, dmg);
   }
   function hitGate(ln, d) {
@@ -728,7 +740,7 @@
     floatText(b.x, b.y - 90, 'TO ME, WARRIORS!', '#ff8a7a', 16);
     sfx.warn();
     for (let r = 0; r < 3; r++) for (let c = 0; c < COLS; c++) {
-      const e = spawnEnemy(r === 0 && S.L >= 2 ? 'shield' : 'grunt', MID[0] + COL_W / 2 + c * COL_W + rnd(-2, 2), b.y + 40 + r * ROW_GAP, S.u);
+      const e = spawnEnemy(r === 0 && S.L >= 2 ? 'shield' : 'grunt', MID[0] + COL_W / 2 + c * COL_W + rnd(-2, 2), b.y + 70 + r * ROW_GAP, S.u);
       S.enemies.push(e); puff(e.x, e.y - 5, 1, 6);
     }
   }
@@ -751,7 +763,7 @@
   function fireMeteor() {
     if (!S || S.over || S.meteor || S.meteorCharge < S.meteorNeed) return;
     // aim at the heaviest part of the horde front
-    const vis = S.enemies.filter(e => !e.dead && !e.flee && e.y > 20).sort((a, b) => b.y - a.y).slice(0, 18);
+    const vis = S.enemies.filter(e => !e.dead && !e.flee && e.y > TARGET_Y).sort((a, b) => b.y - a.y).slice(0, 6);
     let tx, ty;
     if (vis.length) { tx = vis.reduce((a, e) => a + e.x, 0) / vis.length; ty = vis[Math.floor(vis.length / 2)].y - 6; }
     else if (S.boss.alive && S.boss.y > 20) { tx = S.boss.x; ty = S.boss.y - 20; }
@@ -818,9 +830,10 @@
       }
       if (e.y >= LINE_Y) {
         e.dead = true;
-        const k = KINDS[e.kind];
-        S.army -= k.contact;
-        if (e.kind === 'bomber') { boom(e.x, e.y, 34); sfx.boom(); S.shake = Math.min(12, S.shake + 5); floatText(e.x, e.y - 30, '-' + k.contact, '#ff6a5f', 18); }
+        const k = KINDS[e.kind], loss = k.contact * UNIT_WORTH;
+        S.army -= loss;
+        if (e.kind === 'bomber') { boom(e.x, e.y, 34); sfx.boom(); S.shake = Math.min(12, S.shake + 5); floatText(e.x, e.y - 30, '-' + loss, '#ff6a5f', 18); }
+        else if (e.kind === 'giant') { boom(e.x, e.y, 50, 'red'); sfx.slam(); S.shake = 14; floatText(e.x, e.y - 60, '-' + loss, '#ff4a40', 24); }
         else { burst(e.x, e.y - 6, '#9fd4ff', 6, 110); sfx.hurt(); S.shake = Math.min(8, S.shake + 1.2); }
       }
     }
@@ -929,14 +942,17 @@
     updateFx(dt);
   }
 
+  // Firepower grows more slowly than head count, so huge squads still have real fights.
+  const firepower = army => Math.pow(Math.max(1, army), 0.72);
+
   function fireWeapons(dt) {
     const n = shooterCount();
     const dmgMult = 1 + 0.2 * save.up.dmg, rateMult = 1 + 0.12 * save.up.rate;
-    const per = S.army / n * dmgMult;
+    const power = firepower(S.army), per = power / n * dmgMult;
     const w = S.weapon;
     if (w === 'storm') {
       S.zapT -= dt;
-      if (S.zapT <= 0) { S.zapT = 0.28; zap(S.army * BASE_RATE * rateMult * dmgMult * 0.28 * 1.5); }
+      if (S.zapT <= 0) { S.zapT = 0.28; zap(power * BASE_RATE * rateMult * dmgMult * 0.28 * 1.5); }
       // a few cosmetic arrows still fly
       S.fireAcc += dt * 2 * Math.min(n, 6);
     } else {
@@ -963,12 +979,12 @@
     if (lane) { hitGate(lane, total); addBolt([[hx, hy], [(lane.x0 + lane.x1) / 2 + rnd(-10, 10), BARRIER_Y + 18]]); return; }
     let best = null, bd = 1e9;
     for (const e of S.enemies) {
-      if (e.dead || e.flee || e.y < 0) continue;
+      if (e.dead || e.flee || e.y < TARGET_Y) continue;
       const d = Math.hypot(e.x - hx, (e.y - hy) * 0.6);
       if (d < bd) { bd = d; best = e; }
     }
     if (!best) {
-      if (S.boss.alive && S.boss.y > 10) { hitBoss(total); addBolt([[hx, hy], [S.boss.x, S.boss.y - 30]]); }
+      if (S.boss.alive && S.boss.y > TARGET_Y + 40) { hitBoss(total); addBolt([[hx, hy], [S.boss.x, S.boss.y - 30]]); }
       return;
     }
     const chain = [best]; let cur = best;
@@ -1036,7 +1052,7 @@
         for (let c = colOf(s.x - 30); c <= colOf(s.x + 30); c++) {
           for (const e of buckets[c]) {
             if (e.dead || (s.hit && s.hit.has(e))) continue;
-            if (Math.abs(e.x - s.x) < e.r + 1.5 && e.y + 2 >= s.y && e.y - e.r * 2.2 <= oy && e.y > hy) { hy = e.y; hitE = e; }
+            if (Math.abs(e.x - s.x) < e.r + 1.5 && e.y + 2 >= s.y && e.y - e.r * 3 <= oy && e.y > hy) { hy = e.y; hitE = e; }
           }
         }
         if (hitE) {
@@ -1045,7 +1061,7 @@
             damageEnemy(hitE, s.dmg); s.hit.add(hitE); burst(s.x, hitE.y - 8, '#ffffff', 2, 60, 0.25);
             if (--s.pierce <= 0) dead = true;
           } else { damageEnemy(hitE, s.dmg); dead = true; if (hitE.kind === 'shield' && !hitE.dead) burst(s.x, hitE.y - 10, '#e8eef5', 2, 60, 0.2, 1.5); sfx.hit(); }
-        } else if (b.alive && Math.abs(s.x - b.x) < 44 && s.y <= b.y && oy >= b.y - 130) {
+        } else if (b.alive && b.y > TARGET_Y + 40 && Math.abs(s.x - b.x) < 60 && s.y <= b.y && oy >= b.y - 170) {
           if (s.k === 'pot') explodeAt(s.x, b.y - 30, 30, s.dmg); else hitBoss(s.dmg);
           burst(s.x, b.y - 30, '#ffb36b', 2, 90, 0.3); dead = true;
         }
@@ -1234,8 +1250,8 @@
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
         drawGlow(GLOW.gold, px(e.x + 2.4, e.y - 30 * s), e.y - 30 * s, (10 + Math.random() * 6) * s, 1); ctx.restore();
       }
-      if ((e.kind === 'brute' || e.kind === 'shield') && e.hp < e.maxHp && !e.flee) {
-        const s = depth(e.y) * e.k, w = (e.kind === 'brute' ? 26 : 14) * s, yy = e.y - (e.kind === 'brute' ? 60 : 36) * s;
+      if (e.kind !== 'grunt' && e.kind !== 'archer' && e.hp < e.maxHp && !e.flee) {
+        const s = depth(e.y) * e.k, w = (e.kind === 'giant' ? 40 : e.kind === 'brute' ? 26 : 14) * s, yy = e.y - (e.kind === 'giant' ? 102 : e.kind === 'brute' ? 60 : 36) * s;
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(px(e.x, e.y) - w / 2, yy, w, 2.5);
         ctx.fillStyle = '#ff4a40'; ctx.fillRect(px(e.x, e.y) - w / 2, yy, w * Math.max(0, e.hp / e.maxHp), 2.5);
       }
