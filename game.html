@@ -170,7 +170,7 @@
   const TARGET_Y = 105; // enemies can only be hit once they are properly on screen, below the HUD
   const SIZE_K = { brute: 2.1, giant: 2.3, bomber: 3.8 };
   const kindK = kind => SIZE_K[kind] || FOE_K;
-  const GUARD_K = 2.6, GUARD_MIN = 6;
+  const GUARD_K = 1.75, GUARD_MIN = 12;
   const STOP_Y = PLAYER_Y - 100, SWING_R = 78;
   const TILE_H = 44, TILE_SPEED = 175;
   const BASE_RATE = 3.5, MAX_SHOOTERS = 24, ARROW_SPEED = 820;
@@ -679,7 +679,7 @@
     }
     // the bulk of the horde is a tight bodyguard packed around the warlord
     const bossY = FRONT_Y - rows * ROW_GAP - 170;
-    const guards = Math.min(120, 30 + 10 * L);
+    const guards = Math.min(240, 70 + 20 * L);
     for (let i = 0, tries = 0; i < guards && tries < 4000; tries++) {
       const a = Math.random() * TAU, rr = Math.sqrt(Math.random());
       const x = W / 2 + Math.cos(a) * rr * 92, y = bossY - 30 + Math.sin(a) * rr * 125;
@@ -687,7 +687,7 @@
       if (Math.hypot((x - W / 2) * 1.2, y - (bossY - 25)) < 52) continue; // clear ring around the warlord
       const q = Math.random();
       const kind = L >= 2 && q < 0.25 ? 'shield' : L >= 3 && q < 0.32 ? 'archer' : 'grunt';
-      enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 1, guard: true }));
+      enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45, guard: true }));
       i++;
     }
     const bossHp = Math.round(1600 * Math.pow(L, 1.35));
@@ -820,9 +820,9 @@
     const b = S.boss;
     floatText(b.x, b.y - 90, 'TO ME, WARRIORS!', '#ff8a7a', 16);
     sfx.warn();
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * TAU, x = clamp(b.x + Math.cos(a) * rnd(55, 85), MID[0] + 10, MID[1] - 10);
-      const e = spawnEnemy(i % 3 === 0 && S.L >= 2 ? 'shield' : 'grunt', x, b.y - 25 + Math.sin(a) * rnd(55, 80), S.u, { k: GUARD_K, hpMul: 1, guard: true });
+    for (let i = 0; i < 26; i++) {
+      const a = (i / 26) * TAU, x = clamp(b.x + Math.cos(a) * rnd(55, 85), MID[0] + 10, MID[1] - 10);
+      const e = spawnEnemy(i % 3 === 0 && S.L >= 2 ? 'shield' : 'grunt', x, b.y - 25 + Math.sin(a) * rnd(55, 80), S.u, { k: GUARD_K, hpMul: 0.45, guard: true });
       S.enemies.push(e); puff(e.x, e.y - 5, 1, 8);
     }
   }
