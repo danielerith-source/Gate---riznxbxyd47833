@@ -107,7 +107,7 @@
       <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
       <li>Watch out for swinging hammers and rolling boulders too.</li>
       <li>Tap <b>JUMP</b> (or press space) to hop over holes, spikes, lasers and arrows. The puppies jump too! Saws, hammers and boulders are too tall to jump, so dodge them.</li>
-      <li>Win a level and the puppies will give you a lick and say “Baby blanky!”</li>
+      <li>Win a level and the puppies will give you a lick and say “Baby blankie!”</li>
       <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3… and on the big levels the top step needs 100!</li>
       <li>Reach the top to open the treasure chest!</li>
     </ul>
@@ -500,7 +500,7 @@ function sayBabyBlanky() {
     const ss = window.speechSynthesis;
     if (!ss) return;
     ss.cancel();
-    const u = new SpeechSynthesisUtterance('Baby blanky!');
+    const u = new SpeechSynthesisUtterance('Baby blankie!');
     u.pitch = 2; u.rate = 0.9; u.volume = 1;
     const v = ss.getVoices().find(v => /^en/i.test(v.lang));
     if (v) u.voice = v;
@@ -1406,7 +1406,7 @@ function drawLicks() {
   drawPuppyFace(ctx, x, y, S, COATS[(i * 2 + level.lv) % COATS.length], tongue);
   if (rise > 0.5) outlinedText(ctx, ['Slurp!', 'Lick!', 'Yay!'][i], x, y - S * 0.62, Math.round(S * 0.16), '#ff7aa2', '#ffffff');
 }
-// All three puppies pop up together and say "Baby blanky!"
+// All three puppies pop up together and say "Baby blankie!"
 function drawUnison(t) {
   const S = Math.min(W * 0.36, H * 0.3);
   const rise = clamp(t / 0.3, 0, 1);
@@ -1426,7 +1426,7 @@ function drawUnison(t) {
     ctx.strokeStyle = '#ff7aa2'; ctx.lineWidth = 4; ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.moveTo(-bw * 0.08, bh / 2 - 2); ctx.lineTo(0, bh / 2 + fs * 0.6); ctx.lineTo(bw * 0.08, bh / 2 - 2); ctx.fill();
-    outlinedText(ctx, 'Baby blanky!', 0, 2, fs, '#ff4f8b', '#ffffff');
+    outlinedText(ctx, 'Baby blankie!', 0, 2, fs, '#ff4f8b', '#ffffff');
     ctx.restore();
   }
 }
