@@ -86,7 +86,20 @@
   #meteor span i { font-style: normal; font-size: 19px; line-height: 1; }
   #meteor.ready { opacity: 1; animation: throb 0.9s ease-in-out infinite; }
   #meteor.ready span { background: radial-gradient(circle at 40% 35%, #ffb36b, #c2410c 60%, #5a1505); color: #fff; }
-  #meteor[hidden] { display: none; }
+  #meteor[hidden], #bomb[hidden] { display: none; }
+  #bomb {
+    position: absolute; left: calc(80px + env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; padding: 5px;
+    background: conic-gradient(var(--bc, #ff8a3d) calc(var(--bp, 0) * 1%), rgba(255,255,255,0.12) 0);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  #bomb span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #3a3346, #15111c); font-family: var(--display); color: #fff; gap: 0; }
+  #bomb span i { font-style: normal; font-size: 18px; line-height: 1; color: var(--bc, #ff8a3d); }
+  #bomb span b { font-weight: 400; font-size: 9px; letter-spacing: 0.04em; }
+  #bomb span em { position: absolute; top: -6px; right: -6px; font-style: normal; font-size: 12px; min-width: 20px; height: 20px; border-radius: 10px;
+    background: var(--bc, #ff8a3d); color: #120a10; display: flex; align-items: center; justify-content: center; border: 2px solid #120a10; }
+  #bomb.empty { opacity: 0.55; }
   #mute {
     position: absolute; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     font-family: var(--body); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: var(--bone);
@@ -102,6 +115,7 @@
     <canvas id="c" width="800" height="1440" aria-label="Horde Breaker game field"></canvas>
 
     <button id="meteor" hidden aria-label="Call a meteor strike"><span><i>☄</i>METEOR</span></button>
+    <button id="bomb" hidden aria-label="Throw a bomb"><span><i id="bombIcon">✹</i><b id="bombName">FIRE</b><em id="bombCount">2</em></span></button>
     <button id="mute" aria-pressed="false">SOUND ON</button>
 
     <div class="overlay" id="menu">
@@ -117,6 +131,8 @@
         <span><b>Soul-bombers</b> charge and explode</span>
         <span><b>Skull tiles</b> must be shot</span>
         <span><b>Meteor</b> charges with kills</span>
+        <span><b>Bombs</b>: fire, frost, holy</span>
+        <span><b>Hordes</b> change each level</span>
       </div>
       <button class="btn" id="playBtn">PLAY</button>
       <div class="row">
@@ -262,10 +278,10 @@
     const g = c.getContext('2d'); g.scale(RES, RES); g.translate(w / 2, h - oy); fn(g);
     c.lw = w; c.lh = h; c.oy = oy; return c;
   }
-  function whiteOf(spr) {
+  function whiteOf(spr, color = 'rgba(255,255,255,0.85)') {
     const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height;
     const g = c.getContext('2d'); g.drawImage(spr, 0, 0); g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = color; g.fillRect(0, 0, c.width, c.height);
     c.lw = spr.lw; c.lh = spr.lh; c.oy = spr.oy; return c;
   }
   const ell = (g, x, y, rx, ry) => { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); };
@@ -432,7 +448,7 @@
   }
 
   // ── Skeletons ──
-  const BONE = '#e9e1c9', BONE_D = '#9b9179', VOID = 'rgba(16,10,22,0.88)';
+  let BONE = '#e9e1c9', BONE_D = '#9b9179'; const VOID = 'rgba(16,10,22,0.88)';
   function bone(g, x1, y1, x2, y2, w) {
     g.lineCap = 'round';
     g.strokeStyle = BONE_D; g.lineWidth = w + 0.6; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
@@ -443,13 +459,23 @@
     const k = o.scale || 1;
     g.save(); g.scale(k, k);
     const st = f ? 1.1 : -1.1;
-    g.fillStyle = 'rgba(0,0,0,0.42)'; ell(g, 0, 0, 7.5, 2.7); g.fill();
+    const keepBone = [BONE, BONE_D];
+    if (o.bone) { BONE = o.bone; BONE_D = o.boneDark; }
+    g.fillStyle = o.wraith ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.42)'; ell(g, 0, 0, 7.5, 2.7); g.fill();
     if (o.cape) { // tattered cloak
       const cg = g.createLinearGradient(0, -17, 0, 0); cg.addColorStop(0, o.cape); cg.addColorStop(1, '#0c0614');
       g.fillStyle = cg; g.beginPath(); g.moveTo(-6, -16.5); g.lineTo(6, -16.5); g.lineTo(9, -2);
       for (let i = 0; i <= 8; i++) g.lineTo(9 - i * 18 / 8, i % 2 ? -4.6 : -0.4);
       g.closePath(); g.fill();
     }
+    if (o.wraith) {
+      // spectral robe in place of legs, hovering above its shadow
+      const rg = g.createLinearGradient(0, -12, 0, -1);
+      rg.addColorStop(0, 'rgba(70,45,120,0.95)'); rg.addColorStop(1, 'rgba(150,110,230,0)');
+      g.fillStyle = rg; g.beginPath(); g.moveTo(-5.2, -12); g.lineTo(5.2, -12); g.quadraticCurveTo(7.5, -6, 6.5, -2);
+      for (let i = 0; i <= 6; i++) g.lineTo(6.5 - i * 13 / 6, (i % 2 ? -4.5 : -1.5) + st * 0.4);
+      g.quadraticCurveTo(-7.5, -6, -5.2, -12); g.closePath(); g.fill();
+    } else {
     // legs
     bone(g, -2.3, -7.6, -2.7, -4 + st * 0.6, 1.1); bone(g, -2.7, -4 + st * 0.6, -2.4, -0.9 + st * 0.4, 1.0);
     bone(g, 2.3, -7.6, 2.7, -4 - st * 0.6, 1.1); bone(g, 2.7, -4 - st * 0.6, 2.4, -0.9 - st * 0.4, 1.0);
@@ -464,6 +490,7 @@
     g.fillStyle = BONE; ell(g, 0, -8.2, 3.7, 1.5); g.fill();
     g.fillStyle = VOID; ell(g, -1.3, -8.2, 0.8, 0.6); g.fill(); ell(g, 1.3, -8.2, 0.8, 0.6); g.fill();
     g.fillStyle = o.rust || '#6b3f24'; g.fillRect(-4.3, -9.9, 8.6, 1.2); g.fillStyle = '#c9a24a'; g.fillRect(-0.7, -10, 1.4, 1.4);
+    }
     // ribcage
     g.fillStyle = VOID; ell(g, 0, -12.9, 4.5, 3.7); g.fill();
     if (o.glowChest) { const cg = g.createRadialGradient(0, -12.6, 0, 0, -12.6, 3.4); cg.addColorStop(0, o.glowChest); cg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = cg; ell(g, 0, -12.6, 3.4, 3); g.fill(); }
@@ -476,6 +503,18 @@
     }
     g.fillStyle = BONE; g.fillRect(-0.55, -15.9, 1.1, 4.5);
     bone(g, -5, -15.9, 0, -16.4, 0.8); bone(g, 5, -15.9, 0, -16.4, 0.8);
+    if (o.rags) { // rotting ghoul flesh and torn shirt
+      g.fillStyle = o.rags; g.beginPath(); g.moveTo(-5, -16); g.lineTo(5, -16); g.lineTo(4.2, -11); g.lineTo(2.4, -12.4); g.lineTo(1, -9.6);
+      g.lineTo(-1.4, -12); g.lineTo(-3.2, -10); g.lineTo(-4.6, -12.5); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(120,20,20,0.5)'; ell(g, 2.6, -14, 0.9, 0.6); g.fill();
+    }
+    if (o.plate) { // death-knight breastplate with gilt trim
+      const pg = g.createLinearGradient(-5, -17, 5, -8); pg.addColorStop(0, '#6a6e7c'); pg.addColorStop(0.5, '#2c2e38'); pg.addColorStop(1, '#101117');
+      g.fillStyle = pg; rrect(g, -5.2, -16.6, 10.4, 8.6, 2.6); g.fill();
+      g.strokeStyle = '#b8902e'; g.lineWidth = 0.5; rrect(g, -5.2, -16.6, 10.4, 8.6, 2.6); g.stroke();
+      g.beginPath(); g.moveTo(0, -16.4); g.lineTo(0, -8.2); g.stroke();
+      g.fillStyle = '#8a1018'; g.beginPath(); g.moveTo(-1.6, -14.6); g.lineTo(1.6, -14.6); g.lineTo(0, -11.4); g.closePath(); g.fill();
+    }
     if (o.armor) { metalBall(g, -5.5, -15.2, 2.7, o.metal || '#7a5a3e'); metalBall(g, 5.5, -15.2, 2.4, o.metal || '#7a5a3e');
       g.strokeStyle = 'rgba(40,20,10,0.6)'; g.lineWidth = 0.4; [-5.5, 5.5].forEach(x => { g.beginPath(); g.arc(x, -15.2, 1.8, 0.2, Math.PI - 0.2); g.stroke(); }); }
     // arms
@@ -484,7 +523,7 @@
     g.fillStyle = BONE; [[-7.1, -7.3], [7, -7.7]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 0.95, 0, TAU); g.fill(); });
     // neck + skull
     g.fillStyle = BONE_D; g.fillRect(-0.7, -17.9, 1.4, 1.7);
-    const sg = g.createRadialGradient(-1.3, -20.8, 0.4, 0, -19.6, 4.8); sg.addColorStop(0, '#fffaf0'); sg.addColorStop(0.6, BONE); sg.addColorStop(1, BONE_D);
+    const sg = g.createRadialGradient(-1.3, -20.8, 0.4, 0, -19.6, 4.8); sg.addColorStop(0, o.boneHi || '#fffaf0'); sg.addColorStop(0.6, BONE); sg.addColorStop(1, BONE_D);
     g.fillStyle = sg; ell(g, 0, -20, 3.8, 4); g.fill();
     g.fillStyle = BONE; rrect(g, -2.5, -17.8, 5, 2.3, 0.9); g.fill();
     g.strokeStyle = BONE_D; g.lineWidth = 0.3;
@@ -497,6 +536,15 @@
     if (o.hood) {
       g.fillStyle = o.hood; g.beginPath(); g.moveTo(-4.6, -17.2); g.quadraticCurveTo(-5, -25.2, 0, -25);
       g.quadraticCurveTo(5, -25.2, 4.6, -17.2); g.lineTo(3.3, -18.8); g.quadraticCurveTo(0, -23.4, -3.3, -18.8); g.closePath(); g.fill();
+    }
+    if (o.greatHelm) { // closed great helm with a burning eye slit
+      const hg = g.createLinearGradient(-4.5, -25, 4.5, -16); hg.addColorStop(0, '#8a8e9c'); hg.addColorStop(0.5, '#3a3c48'); hg.addColorStop(1, '#121318');
+      g.fillStyle = hg; rrect(g, -4.4, -24.6, 8.8, 8.6, 2.6); g.fill();
+      g.strokeStyle = '#b8902e'; g.lineWidth = 0.45; rrect(g, -4.4, -24.6, 8.8, 8.6, 2.6); g.stroke();
+      g.fillStyle = '#08080c'; g.fillRect(-3.4, -21, 6.8, 1.3);
+      g.fillStyle = o.eyes || '#ff3a3a'; g.fillRect(-2.6, -20.8, 1.6, 0.8); g.fillRect(1, -20.8, 1.6, 0.8);
+      g.fillStyle = '#1a1b22'; for (let i = 0; i < 4; i++) g.fillRect(-1.6 + i * 1.1, -18.6, 0.5, 1.6);
+      g.fillStyle = '#5a0b10'; g.beginPath(); g.moveTo(-0.8, -24.6); g.quadraticCurveTo(0, -30, 3.5, -27.5); g.quadraticCurveTo(1, -26.5, 0.8, -24.6); g.closePath(); g.fill();
     }
     if (o.helm) {
       const hg = g.createLinearGradient(-4, -25, 4, -20); hg.addColorStop(0, '#b08458'); hg.addColorStop(1, '#4a2e1a');
@@ -518,6 +566,7 @@
       g.fillStyle = '#c42a5a'; g.beginPath(); g.arc(-2.4, -23.4, 0.45, 0, TAU); g.fill(); g.beginPath(); g.arc(2.4, -23.4, 0.45, 0, TAU); g.fill();
     }
     gear(g, o);
+    BONE = keepBone[0]; BONE_D = keepBone[1];
     g.restore();
   }
 
@@ -528,13 +577,32 @@
     const w = 32 * k, h = 40 * k;
     SPRITES[name] = [0, 1].map(f => outlined(bake(w, h, g => (o.skel ? skeleton : figure)(g, Object.assign({ scale: k }, o), f)), 'rgba(12,4,8,0.92)', 0.5 * Math.max(1, k * 0.6)));
     SPRITES[name].white = whiteOf(SPRITES[name][0]);
+    SPRITES[name].ice = whiteOf(SPRITES[name][0], 'rgba(150,215,255,0.62)');
   }
-  bakeKind('grunt', Object.assign({}, FOE, { weapon: 'spear', pennant: '#3a1450', shield: true, shieldColor: '#4a3626', shieldLight: '#9a7650', shieldEmblem: 'claw', helm: true }), 1);
-  bakeKind('shield', Object.assign({}, FOE, { armor: true, greaves: true, shield: 'tower', shieldColor: '#2e3038', shieldLight: '#7a808a', shieldEmblem: 'skull', weapon: 'spear', helm: true }), 1.12);
-  bakeKind('archer', Object.assign({}, FOE, { hood: '#2a2236', weapon: 'bow', cloth: '#2a2236' }), 1);
-  bakeKind('giant', Object.assign({}, FOE, { armor: true, greaves: true, metal: '#4d4a52', weapon: 'axe', shield: 'tower', shieldColor: '#1e1a24', shieldLight: '#5a4a6a', shieldEmblem: 'skull', horns: true, cape: '#241038', glowChest: 'rgba(125,255,168,0.8)' }), 3.2);
-  bakeKind('brute', Object.assign({}, FOE, { armor: true, greaves: true, weapon: 'axe', horns: true, cloth: '#4a1a1a', glowChest: 'rgba(125,255,168,0.5)' }), 1.9);
-  bakeKind('bomber', Object.assign({}, FOE, { hood: '#1f2a22', bomb: true, bombColor: '#2f7a52', cloth: '#1f2a22', glowChest: 'rgba(125,255,168,0.6)' }), 0.95);
+  // Horde factions: each level is led by one, later levels mix in a second.
+  const FACTIONS = {
+    legion: { name: 'Skeleton Legion', hp: 1, spd: 1, look: {} },
+    ghoul: { name: 'Ghoul Swarm', hp: 0.7, spd: 1.35, look: { bone: '#7fae5a', boneDark: '#3e5a2c', boneHi: '#cfeaa8', eyes: '#ff5a2a', rags: '#6a2a1e', cloth: '#4a2016', helm: false, shield: false, weapon: 'none', armor: false, greaves: false, glowChest: 'rgba(255,90,40,0.45)' } },
+    knight: { name: 'Death Knights', hp: 1.6, spd: 0.8, look: { plate: true, helm: false, greatHelm: true, hood: null, eyes: '#ff3a3a', metal: '#3a3d48', armor: true, greaves: true, shieldColor: '#3a060c', shieldLight: '#a01828', shieldEmblem: 'skull', pennant: '#a01828', cloth: '#1a1b22', bone: '#cfc8b4', boneDark: '#7d7666' } },
+    wraith: { name: 'Wraith Host', hp: 0.9, spd: 1.1, look: { wraith: true, hood: '#3a2266', eyes: '#e2c8ff', helm: false, greaves: false, cloth: null, shield: false, armor: false, bone: '#dcd6f0', boneDark: '#8a82a8', boneHi: '#ffffff', glowChest: 'rgba(190,150,255,0.7)' } },
+  };
+  const FACTION_ORDER = ['legion', 'ghoul', 'knight', 'wraith'];
+  const KIND_LOOK = {
+    grunt: [{ weapon: 'spear', pennant: '#3a1450', shield: true, shieldColor: '#4a3626', shieldLight: '#9a7650', shieldEmblem: 'claw', helm: true }, 1],
+    shield: [{ armor: true, greaves: true, shield: 'tower', shieldColor: '#2e3038', shieldLight: '#7a808a', shieldEmblem: 'skull', weapon: 'spear', helm: true }, 1.12],
+    archer: [{ hood: '#2a2236', weapon: 'bow', cloth: '#2a2236' }, 1],
+    giant: [{ armor: true, greaves: true, metal: '#4d4a52', weapon: 'axe', shield: 'tower', shieldColor: '#1e1a24', shieldLight: '#5a4a6a', shieldEmblem: 'skull', horns: true, cape: '#241038', glowChest: 'rgba(125,255,168,0.8)' }, 3.2],
+    brute: [{ armor: true, greaves: true, weapon: 'axe', horns: true, cloth: '#4a1a1a', glowChest: 'rgba(125,255,168,0.5)' }, 1.9],
+    bomber: [{ hood: '#1f2a22', bomb: true, bombColor: '#2f7a52', cloth: '#1f2a22', glowChest: 'rgba(125,255,168,0.6)' }, 0.95],
+  };
+  for (const fac of FACTION_ORDER) for (const kind in KIND_LOOK) {
+    const [look, k] = KIND_LOOK[kind];
+    const o = Object.assign({}, FOE, look, FACTIONS[fac].look);
+    if (kind === 'archer' && fac !== 'knight') o.hood = FACTIONS[fac].look.hood || look.hood;
+    if (kind === 'bomber') { o.bomb = true; o.hood = o.hood || '#1f2a22'; }
+    if ((kind === 'giant' || kind === 'brute') && fac === 'knight') { o.horns = true; }
+    bakeKind(fac + '_' + kind, o, k);
+  }
   bakeKind('boss', Object.assign({}, FOE, { armor: true, greaves: true, metal: '#8a6d4a', weapon: 'none', shield: true, shieldColor: '#2a1238', shieldLight: '#7a4a9a', shieldEmblem: 'skull', cape: '#3a1450', crown: true, cloth: '#3a1450', glowChest: 'rgba(125,255,168,0.9)' }), 3.4);
   bakeKind('ally', Object.assign({}, ALLY, { weapon: 'bow', plume: '#e8f4ff', shieldEmblem: 'star' }), 1);
   bakeKind('hero', Object.assign({}, ALLY, { cloth: '#3aa0ff', armor: true, metal: '#dfe8f2', weapon: 'sword', shield: true, shieldColor: '#0d4fa8', shieldLight: '#6fc0ff', shieldEmblem: 'star', cape: '#123d8a', plume: '#ffc23d', quiver: false }), 1.55);
@@ -771,16 +839,18 @@
     // A continuous mass of skeletons fills the road from the front line back to the Bone King.
     const u = 22 * L;
     const enemies = [];
+    const fac = FACTION_ORDER[(L - 1) % 4], fac2 = FACTION_ORDER[L % 4], mix = L >= 3 ? 0.3 : 0;
+    const pick = () => Math.random() < mix ? fac2 : fac;
     const VCOLS = 7, VROW = 19, rows = Math.min(40, 10 + 3 * L);
     const span = MID[1] - MID[0] - 24, cw = span / (VCOLS - 1);
     const giantEvery = Math.max(6, 11 - L);
     const clear = []; // spaces kept free for the big units
     for (let r = 4; r < rows - 2; r++) {
       const y = FRONT_Y - r * VROW;
-      if (r % giantEvery === giantEvery - 1) { enemies.push(spawnEnemy('giant', W / 2 + rnd(-8, 8), y, u)); clear.push([W / 2, y - 30, 48, 62]); r += 2; }
+      if (r % giantEvery === giantEvery - 1) { enemies.push(spawnEnemy('giant', W / 2 + rnd(-8, 8), y, u, { fac: pick() })); clear.push([W / 2, y - 30, 48, 62]); r += 2; }
       else if (L >= 3 && Math.random() < Math.min(0.35, 0.08 * L)) {
         const x = MID[0] + 34 + Math.random() * (span - 44);
-        enemies.push(spawnEnemy('brute', x, y, u)); clear.push([x, y - 18, 28, 34]);
+        enemies.push(spawnEnemy('brute', x, y, u, { fac: pick() })); clear.push([x, y - 18, 28, 34]);
       }
     }
     for (let r = 0; r < rows; r++) {
@@ -795,7 +865,7 @@
         else if (L >= 2 && r < 3 && q < 0.6) kind = 'shield';
         else if (L >= 2 && r >= 3 && q < Math.min(0.12, 0.03 + 0.015 * L)) kind = 'archer';
         else if (q < 0.06 && L >= 2) kind = 'shield';
-        enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45 }));
+        enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45, fac: pick() }));
       }
     }
     // the bulk of the horde is a tight bodyguard packed around the warlord
@@ -808,7 +878,7 @@
       if (Math.hypot((x - W / 2) * 1.2, y - (bossY - 25)) < 52) continue; // clear ring around the warlord
       const q = Math.random();
       const kind = L >= 2 && q < 0.25 ? 'shield' : L >= 3 && q < 0.32 ? 'archer' : 'grunt';
-      enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45, guard: true }));
+      enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45, guard: true, fac }));
       i++;
     }
     const bossHp = Math.round(1600 * Math.pow(L, 1.35));
@@ -816,13 +886,14 @@
     const big = L % 2 === 1;
     const startArmy = 1 + 3 * save.up.squad;
     S = {
-      t: 0, L, u, over: false, guardCount: 0, endT: 0, result: null,
+      t: 0, L, u, over: false, guardCount: 0, fac, fac2, mix, endT: 0, result: null,
       army: startArmy, peak: startArmy, kills: 0, coins: 0,
       hx: W / 2, targetX: W / 2,
       enemies, foeArrows: [], shots: [], bolts: [], parts: [], smoke: [], texts: [], runners: [], booms: [], corpses: [], crates: [],
       fireAcc: 0, shooterIdx: 0, zapT: 0, cracks: [], deathBy: null,
       weapon: 'arrows', weaponT: 0,
-      meteorCharge: 0, meteorNeed: Math.max(22, 45 - 4 * save.up.meteor), meteor: null,
+      meteorCharge: 0, meteorNeed: Math.max(22, 45 - 4 * save.up.meteor), meteor: null, craters: [],
+      bomb: { charges: 2, t: 0, next: 'fire' }, thrown: [], zones: [],
       lanes: [makeLane(LANE_L, lp, big ? 'gold' : 'blue'), makeLane(LANE_R, rp, big ? 'blue' : 'gold')],
       speed: 13 + 1.0 * L,
       boss: { x: W / 2, y: bossY, hp: bossHp, maxHp: bossHp, alive: true, flash: 0, slamT: 5, slam: null, phase: 0, sway: 0, mode: 'march', swing: null, axeA: -Math.PI / 2 },
@@ -832,8 +903,9 @@
     };
   }
   function spawnEnemy(kind, x, y, u, o = {}) {
-    const k = KINDS[kind], sz = o.k || kindK(kind), hp = k.hp * u * (o.hpMul || 1);
-    return { kind, x, y, hp, maxHp: hp, r: k.r * sz * 0.85, k: sz, guard: !!o.guard, worth: sz <= GUARD_K ? 1 : UNIT_WORTH, flash: 0, ph: Math.random() * 10, shootT: rnd(2, 6), dead: false, flee: false };
+    const fac = o.fac || (S && S.fac) || 'legion', F = FACTIONS[fac];
+    const k = KINDS[kind], sz = o.k || kindK(kind), hp = k.hp * u * (o.hpMul || 1) * F.hp;
+    return { kind, fac, spr: fac + '_' + kind, spd: o.guard ? 1 : F.spd, frozen: 0, x, y, hp, maxHp: hp, r: k.r * sz * 0.85, k: sz, guard: !!o.guard, worth: sz <= GUARD_K ? 1 : UNIT_WORTH, flash: 0, ph: Math.random() * 10, shootT: rnd(2, 6), dead: false, flee: false };
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -848,7 +920,7 @@
     const x = toWorldX(e.clientX); S.targetX += (x - dragLastX) * 1.3; dragLastX = x;
   });
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, () => { dragging = false; }));
-  addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ' && running) { e.preventDefault(); fireMeteor(); } });
+  addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ' && running) { e.preventDefault(); fireMeteor(); } if ((e.key === 'b' || e.key === 'B') && running) throwBomb(); });
   addEventListener('keyup', e => { keys[e.key] = false; });
 
   // ════════════════════════════════════════════════════════════════════
@@ -896,6 +968,7 @@
 
   function damageEnemy(e, d) {
     if (e.dead) return;
+    if (e.frozen > 0) d *= 1.5;
     e.hp -= d; e.flash = 0.07;
     if (e.kind === 'giant' || e.kind === 'brute') e.dmgAcc = (e.dmgAcc || 0) + d;
     if (e.hp <= 0) killEnemy(e);
@@ -907,7 +980,7 @@
     burst(e.x, e.y - 8, '#e9e1c9', e.kind === 'giant' ? 40 : e.kind === 'brute' ? 18 : 8, 120, 0.6, 3);
     burst(e.x, e.y - 14, '#7dffa8', e.kind === 'giant' ? 16 : 4, 60, 0.7, 2);
     if (e.kind === 'giant') { boom(e.x, e.y - 30, 60); sfx.boom(); S.shake = 12; floatText(e.x, e.y - 90, 'COLOSSUS FELLED', '#7dffa8', 20); }
-    S.corpses.push({ kind: e.kind, k: e.k, x: e.x, y: e.y, life: 0.6, dir: Math.random() < 0.5 ? -1 : 1 });
+    S.corpses.push({ kind: e.kind, spr: e.spr, k: e.k, x: e.x, y: e.y, life: 0.6, dir: Math.random() < 0.5 ? -1 : 1 });
     if (S.corpses.length > 80) S.corpses.shift();
     if (e.kind === 'bomber') { explodeAt(e.x, e.y - 10, 50, 6 * S.u, false); }
     if (e.kind === 'brute' || e.kind === 'giant' || Math.random() < 0.03) {
@@ -964,6 +1037,114 @@
     sfx.weapon();
   }
 
+  // ── Throwable bombs ──
+  const BOMBS = {
+    fire: { name: 'FIRE', icon: '✹', color: '#ff8a3d' },
+    frost: { name: 'FROST', icon: '❄', color: '#8fd8ff' },
+    holy: { name: 'HOLY', icon: '✚', color: '#ffe38a' },
+  };
+  const BOMB_TYPES = Object.keys(BOMBS), BOMB_MAX = 3, BOMB_RECHARGE = 8;
+  function bombTarget() {
+    let best = null, bs = -1e9;
+    for (const e of S.enemies) {
+      if (e.dead || e.flee || e.y < TARGET_Y + 20) continue;
+      const score = e.y - Math.abs(e.x - S.hx) * 1.2; // the nearest thick of the fight in front of you
+      if (score > bs) { bs = score; best = e; }
+    }
+    if (best) return [clamp(best.x, MID[0] + 20, MID[1] - 20), best.y - 14];
+    if (S.boss.alive && S.boss.y > TARGET_Y) return [S.boss.x, S.boss.y - 20];
+    return null;
+  }
+  function throwBomb() {
+    if (!S || S.over || S.bomb.charges < 1) return;
+    const tgt = bombTarget(); if (!tgt) return;
+    const type = S.bomb.next;
+    S.bomb.charges--; S.bomb.next = BOMB_TYPES[(Math.random() * 3) | 0];
+    S.thrown.push({ type, x0: S.hx, y0: PLAYER_Y - 20, x1: tgt[0], y1: tgt[1], t: 0, dur: 0.75, spin: 0 });
+    tone(500, 0.18, 'triangle', 0.05, -250);
+  }
+  function landBomb(b) {
+    const u = S.u, k = 1 + 0.15 * save.up.meteor;
+    S.shake = Math.max(S.shake, 9);
+    if (b.type === 'fire') {
+      explodeAt(b.x1, b.y1, 48, 1.4 * u * k, false);
+      S.zones.push({ type: 'fire', x: b.x1, y: b.y1, r: 62, t: 4, max: 4, dps: 1.1 * u * k });
+      floatText(b.x1, b.y1 - 40, 'FIRE BOMB', '#ffb36b', 16);
+    } else if (b.type === 'frost') {
+      boom(b.x1, b.y1, 40, 'frost'); sfx.zap();
+      for (const e of S.enemies) if (!e.dead && !e.flee && Math.hypot(e.x - b.x1, (e.y - b.y1) * 1.2) < 78) { e.frozen = 4; damageEnemy(e, 0.4 * u); }
+      S.zones.push({ type: 'frost', x: b.x1, y: b.y1, r: 78, t: 4, max: 4 });
+      burst(b.x1, b.y1, '#cfefff', 30, 200, 0.8, 3);
+      floatText(b.x1, b.y1 - 40, 'FROZEN!', '#bfe9ff', 16);
+    } else {
+      boom(b.x1, b.y1, 56, 'holy'); sfx.win();
+      for (const e of S.enemies) {
+        if (e.dead || e.flee) continue;
+        const d = Math.hypot(e.x - b.x1, (e.y - b.y1) * 1.2);
+        if (d < 72) { damageEnemy(e, 2.6 * u * k); if (!e.dead) e.y -= 70 * (1 - d / 72); }
+      }
+      if (S.boss.alive && Math.hypot(S.boss.x - b.x1, S.boss.y - 40 - b.y1) < 100) hitBoss(2.6 * u * k * 3);
+      S.booms.push({ x: b.x1, y: b.y1, r: 90, life: 0.6, max: 0.6, color: 'ring' });
+      S.flashSky = Math.max(S.flashSky, 0.25);
+      floatText(b.x1, b.y1 - 40, 'HOLY BLAST', '#fff2b0', 16);
+    }
+  }
+  function updateBombs(dt) {
+    const B = S.bomb;
+    if (B.charges < BOMB_MAX) { B.t += dt; if (B.t >= BOMB_RECHARGE) { B.t = 0; B.charges++; } }
+    for (let i = S.thrown.length - 1; i >= 0; i--) {
+      const b = S.thrown[i]; b.t += dt; b.spin += dt * 14;
+      if (b.t >= b.dur) { S.thrown.splice(i, 1); landBomb(b); }
+    }
+    for (let i = S.zones.length - 1; i >= 0; i--) {
+      const z = S.zones[i]; z.t -= dt;
+      if (z.type === 'fire') {
+        for (const e of S.enemies) if (!e.dead && !e.flee && Math.hypot(e.x - z.x, (e.y - z.y) * 1.2) < z.r) damageEnemy(e, z.dps * dt);
+        if (Math.random() < 0.6) S.parts.push({ x: z.x + rnd(-z.r, z.r) * 0.8, y: z.y + rnd(-z.r, z.r) * 0.35, vx: rnd(-10, 10), vy: -rnd(30, 70), life: 0.6, max: 0.6, color: Math.random() < 0.5 ? '#ff9a3d' : '#ffd27a', size: 2.5 });
+      }
+      if (z.t <= 0) S.zones.splice(i, 1);
+    }
+  }
+  function drawBombs() {
+    for (const z of S.zones) {
+      const a = Math.min(1, z.t / 0.6) * (z.type === 'fire' ? 0.55 : 0.45), x = px(z.x, z.y), d = depth(z.y);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a;
+      if (z.type === 'fire') {
+        drawGlow(GLOW.fire, x, z.y, z.r * 2.4 * d, 0.9);
+        for (let i = 0; i < 7; i++) {
+          const fx = x + Math.cos(i * 2.1 + S.t * 2) * z.r * 0.6 * d, fy = z.y + Math.sin(i * 1.7 + S.t * 1.6) * z.r * 0.22;
+          const h = (10 + 6 * Math.sin(S.t * 12 + i)) * d;
+          ctx.fillStyle = 'rgba(255,150,50,0.9)'; ctx.beginPath(); ctx.moveTo(fx - 4 * d, fy); ctx.quadraticCurveTo(fx, fy - h * 2, fx + 4 * d, fy); ctx.fill();
+          ctx.fillStyle = 'rgba(255,235,160,0.9)'; ctx.beginPath(); ctx.moveTo(fx - 2 * d, fy); ctx.quadraticCurveTo(fx, fy - h, fx + 2 * d, fy); ctx.fill();
+        }
+      } else if (z.type === 'frost') {
+        drawGlow(GLOW.cyan, x, z.y, z.r * 2.2 * d, 0.7);
+        ctx.strokeStyle = 'rgba(220,245,255,0.8)'; ctx.lineWidth = 1.5;
+        for (let i = 0; i < 6; i++) { const ang = i * Math.PI / 3; ctx.beginPath(); ctx.moveTo(x, z.y); ctx.lineTo(x + Math.cos(ang) * z.r * d, z.y + Math.sin(ang) * z.r * 0.4); ctx.stroke(); }
+      }
+      ctx.restore();
+    }
+    for (const b of S.thrown) {
+      const k = b.t / b.dur, x = b.x0 + (b.x1 - b.x0) * k, gy = b.y0 + (b.y1 - b.y0) * k, arc = Math.sin(Math.PI * k) * 130, y = gy - arc;
+      const d = depth(gy), def = BOMBS[b.type];
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(px(x, gy), gy, 7 * d, 2.6 * d, 0, 0, TAU); ctx.fill();
+      // landing marker
+      ctx.strokeStyle = def.color; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(S.t * 20); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(px(b.x1, b.y1), b.y1, 30 * depth(b.y1), 10 * depth(b.y1), 0, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+      const sx = px(x, y), sz = 7 * (1 + arc / 260);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; drawGlow(b.type === 'fire' ? GLOW.fire : b.type === 'frost' ? GLOW.cyan : GLOW.gold, sx, y, sz * 5, 0.8); ctx.restore();
+      ctx.save(); ctx.translate(sx, y); ctx.rotate(b.spin);
+      const bg = ctx.createRadialGradient(-sz * 0.3, -sz * 0.3, 1, 0, 0, sz);
+      bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.3, def.color); bg.addColorStop(1, '#1a1420');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(0, 0, sz, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#1a1420'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, sz * 0.7, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-2, -sz - 3, 4, 4);
+      ctx.restore();
+      if (Math.random() < 0.7) S.parts.push({ x, y: y, vx: rnd(-20, 20), vy: rnd(-10, 20), life: 0.3, max: 0.3, color: def.color, size: 2 });
+    }
+  }
+
+  // ── Meteor strike: one great boulder and four smaller stones, each with a target ring ──
   function fireMeteor() {
     if (!S || S.over || S.meteor || S.meteorCharge < S.meteorNeed) return;
     // aim at the heaviest part of the horde front
@@ -973,7 +1154,10 @@
     else if (S.boss.alive && S.boss.y > 20) { tx = S.boss.x; ty = S.boss.y - 20; }
     else return;
     S.meteorCharge = 0;
-    S.meteor = { tx, ty, t: 0, dur: 0.7 };
+    const rocks = [{ dx: 0, dy: 0, delay: 0.35, size: 1 }];
+    [[-55, 30, 0], [52, 26, 0.15], [-38, -42, 0.55], [44, -46, 0.7]].forEach(([dx, dy, delay]) => rocks.push({ dx, dy, delay, size: 0.55 }));
+    S.meteor = { tx, ty, t: 0, dim: 0, rocks: rocks.map(r => Object.assign(r, { x: clamp(tx + r.dx, MID[0] + 10, MID[1] - 10), y: ty + r.dy, fall: 1.1, done: false })) };
+    S.banner = { text: 'METEOR STRIKE', life: 1.8 };
     sfx.meteor();
   }
 
@@ -1030,7 +1214,8 @@
         if (e.y > 0 && Math.sin(S.t * 5 + e.ph) > 0.96) { S.shake = Math.max(S.shake, 3); if (canPlay('stomp', 350)) tone(60, 0.15, 'sine', 0.12, -15); }
       }
       if (e.flee) { e.y -= 150 * dt; continue; }
-      e.y += e.kind === 'bomber' && e.y > -10 ? sp * 2.6 : sp;
+      if (e.frozen > 0) { e.frozen -= dt; continue; }
+      e.y += (e.kind === 'bomber' && e.y > -10 ? sp * 2.6 : sp) * e.spd;
       if (!live) continue;
       if (e.kind === 'archer' && e.y > 30 && e.y < PLAYER_Y - 140) {
         e.shootT -= dt;
@@ -1120,6 +1305,8 @@
       }
     }
 
+    if (live) updateBombs(dt);
+
     // crates fall toward the line
     for (let i = S.crates.length - 1; i >= 0; i--) {
       const c = S.crates[i];
@@ -1134,14 +1321,19 @@
     // meteor
     if (S.meteor) {
       const m = S.meteor; m.t += dt;
-      if (m.t >= m.dur) {
-        const dmg = 14 * S.u * (1 + 0.3 * save.up.meteor);
-        explodeAt(m.tx, m.ty, 75, dmg, false);
-        if (S.boss.alive && Math.abs(S.boss.x - m.tx) < 90 && Math.abs(S.boss.y - m.ty) < 110) hitBoss(S.boss.maxHp * 0.06);
-        S.booms.push({ x: m.tx, y: m.ty, r: 110, life: 0.7, max: 0.7, color: 'ring' });
-        S.shake = 18; S.flashSky = 0.4;
-        S.meteor = null;
+      const dmg = 14 * S.u * (1 + 0.3 * save.up.meteor);
+      for (const r of m.rocks) {
+        if (r.done || m.t < r.delay + r.fall) continue;
+        r.done = true;
+        const rad = r.size === 1 ? 85 : 45;
+        explodeAt(r.x, r.y, rad, dmg * (r.size === 1 ? 1 : 0.6), false);
+        if (S.boss.alive && Math.abs(S.boss.x - r.x) < rad + 20 && Math.abs(S.boss.y - 40 - r.y) < rad + 50) hitBoss(S.boss.maxHp * (r.size === 1 ? 0.06 : 0.02));
+        S.booms.push({ x: r.x, y: r.y, r: rad * 1.5, life: 0.8, max: 0.8, color: 'ring' });
+        S.craters.push({ x: r.x, y: r.y, r: rad * 0.55, life: 6 });
+        burst(r.x, r.y, '#6a5a50', r.size === 1 ? 40 : 16, 300, 1, 3.5);
+        S.shake = r.size === 1 ? 22 : Math.max(S.shake, 10); S.flashSky = r.size === 1 ? 0.6 : Math.max(S.flashSky, 0.2);
       }
+      if (m.rocks.every(r => r.done)) S.meteor = null;
     }
 
     // runners
@@ -1352,6 +1544,7 @@
     for (let i = S.corpses.length - 1; i >= 0; i--) { const c = S.corpses[i]; c.life -= dt; if (c.life <= 0) S.corpses.splice(i, 1); }
     for (const e of S.embers) { e.y -= e.v * dt; e.x += Math.sin(S.t * 1.5 + e.ph) * 8 * dt; if (e.y < -5) { e.y = H + 5; e.x = rnd(0, W); } }
     S.shake = Math.max(0, S.shake - dt * 22);
+    for (let i = S.craters.length - 1; i >= 0; i--) { S.craters[i].life -= dt; if (S.craters[i].life <= 0) S.craters.splice(i, 1); }
     for (let i = S.cracks.length - 1; i >= 0; i--) { S.cracks[i].life -= dt; if (S.cracks[i].life <= 0) S.cracks.splice(i, 1); }
     if (S.banner) { S.banner.life -= dt; if (S.banner.life <= 0) S.banner = null; }
     S.flashSky = Math.max(0, S.flashSky - dt * 1.6);
@@ -1544,12 +1737,14 @@
     let bossDrawn = !b.alive || b.y < -120;
     for (const e of list) {
       if (!bossDrawn && e.y > b.y) { drawBoss(); bossDrawn = true; }
-      const spr = SPRITES[e.kind];
+      const spr = SPRITES[e.spr] || SPRITES[e.kind];
+      if (e.fac === 'wraith' && !e.flee) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; drawGlow(GLOW.violet, px(e.x, e.y), e.y - 14 * e.k * depth(e.y), 26 * e.k * depth(e.y), 0.35); ctx.restore(); ctx.globalAlpha = 0.86; }
       const f = ((S.t * 6 + e.ph) | 0) % 2;
       if (e.flee) { ctx.globalAlpha = clamp((e.y + 40) / 120, 0, 1); }
       const ex = e.x + Math.sin(S.t * 4 + e.ph) * 0.8;
       drawSpr(spr[f], ex, e.y, e.k);
       if (e.flash > 0) { const ga = ctx.globalAlpha; ctx.globalAlpha = ga * 0.4; drawSpr(spr.white, ex, e.y, e.k); ctx.globalAlpha = ga; }
+      if (e.frozen > 0) { const ga = ctx.globalAlpha; ctx.globalAlpha = ga * Math.min(1, e.frozen * 2) * 0.85; drawSpr(spr.ice, ex, e.y, e.k); ctx.globalAlpha = ga; }
       ctx.globalAlpha = 1;
       if (e.kind === 'bomber' && !e.flee) {
         const s = depth(e.y) * e.k;
@@ -1565,7 +1760,7 @@
     if (!bossDrawn) drawBoss();
     for (const c of S.corpses) {
       ctx.globalAlpha = Math.min(1, c.life / 0.6 * 1.2);
-      const s = depth(c.y), spr = SPRITES[c.kind][0];
+      const s = depth(c.y), spr = (SPRITES[c.spr] || SPRITES[c.kind])[0];
       ctx.save(); ctx.translate(px(c.x, c.y), c.y); ctx.rotate((1 - c.life / 0.6) * c.dir * 1.35); drawSprRaw(spr, s * c.k); ctx.restore();
       ctx.globalAlpha = 1;
     }
@@ -1638,6 +1833,53 @@
     ctx.beginPath(); ctx.ellipse(x, PLAYER_Y, SWING_R, 22, 0, 0, TAU); ctx.stroke();
     ctx.restore();
     text('MOVE!', x, PLAYER_Y + 36, 16, '#ffd0c0', '#3a0004');
+  }
+
+  function drawCraters() {
+    for (const c of S.craters) {
+      const a = Math.min(1, c.life / 2), x = px(c.x, c.y), d = depth(c.y);
+      ctx.globalAlpha = a * 0.85; ctx.fillStyle = '#120c0a'; ctx.beginPath(); ctx.ellipse(x, c.y, c.r * d, c.r * 0.38 * d, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,120,40,${0.7 * a})`; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+  function drawMeteor() {
+    const m = S.meteor; if (!m) return;
+    // darken the battlefield while the strike is called in
+    m.dim = Math.min(1, m.dim + 0.05);
+    ctx.fillStyle = `rgba(20,4,0,${0.28 * m.dim})`; ctx.fillRect(0, 0, W, H);
+    for (const r of m.rocks) {
+      if (r.done) continue;
+      const k = clamp((m.t - r.delay) / r.fall, 0, 1), d = depth(r.y), gx = px(r.x, r.y);
+      // target ring + crosshair, tightening as the stone falls
+      const ring = (r.size === 1 ? 85 : 45) * d * (1.4 - 0.4 * k);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,${80 + 100 * k},40,${0.5 + 0.5 * Math.sin(S.t * 18)})`; ctx.lineWidth = r.size === 1 ? 3 : 2;
+      ctx.beginPath(); ctx.ellipse(gx, r.y, ring, ring * 0.36, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx - ring * 1.15, r.y); ctx.lineTo(gx + ring * 1.15, r.y); ctx.moveTo(gx, r.y - ring * 0.5); ctx.lineTo(gx, r.y + ring * 0.5); ctx.stroke();
+      ctx.fillStyle = `rgba(0,0,0,${0.15 + 0.4 * k})`; ctx.beginPath(); ctx.ellipse(gx, r.y, ring * 0.6 * k, ring * 0.22 * k, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+      if (m.t < r.delay) continue;
+      // the stone itself, falling from the upper right with a long burning tail
+      const sx0 = gx + 170, sy0 = -120, x = sx0 + (gx - sx0) * k, y = sy0 + (r.y - 18 - sy0) * k * k;
+      const R0 = (r.size === 1 ? 20 : 11) * (0.7 + 0.3 * k);
+      const ang = Math.atan2(r.y - sy0, gx - sx0);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i <= 9; i++) {
+        const tx = x - Math.cos(ang) * i * R0 * 1.1, ty = y - Math.sin(ang) * i * R0 * 1.1;
+        drawGlow(i < 3 ? GLOW.gold : GLOW.fire, tx, ty, R0 * (5 - i * 0.4), 0.75 - i * 0.07);
+      }
+      drawGlow(GLOW.white, x, y, R0 * 3, 0.9);
+      ctx.restore();
+      const rg = ctx.createRadialGradient(x - R0 * 0.3, y - R0 * 0.3, 1, x, y, R0);
+      rg.addColorStop(0, '#6a4a3a'); rg.addColorStop(0.7, '#2a1a14'); rg.addColorStop(1, '#120a08');
+      ctx.fillStyle = rg; ctx.beginPath();
+      for (let i = 0; i < 9; i++) { const a = i / 9 * TAU, rr = R0 * (0.85 + 0.15 * Math.sin(i * 3.7)); ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#ffb347'; ctx.lineWidth = r.size === 1 ? 2 : 1.2; ctx.beginPath();
+      ctx.moveTo(x - R0 * 0.5, y - R0 * 0.1); ctx.lineTo(x - R0 * 0.1, y + R0 * 0.2); ctx.lineTo(x + R0 * 0.3, y - R0 * 0.3);
+      ctx.moveTo(x - R0 * 0.1, y + R0 * 0.2); ctx.lineTo(x + R0 * 0.1, y + R0 * 0.6); ctx.stroke();
+      if (Math.random() < 0.8) S.parts.push({ x: (x - W / 2) / depth(y) + W / 2, y, vx: rnd(-40, 40), vy: rnd(-40, 10), life: 0.4, max: 0.4, color: '#ffb347', size: 2.5 });
+    }
   }
 
   function drawSlam() {
@@ -1777,7 +2019,7 @@
         ctx.strokeStyle = `rgba(255,170,90,${1 - k})`; ctx.lineWidth = 4 * (1 - k) + 1;
         ctx.beginPath(); ctx.ellipse(x, b.y, b.r * k, b.r * k * 0.4, 0, 0, TAU); ctx.stroke();
       } else {
-        drawGlow(b.color === 'red' ? GLOW.red : GLOW.fire, x, b.y, b.r * 3.2 * (0.6 + k), 1 - k);
+        drawGlow(b.color === 'red' ? GLOW.red : b.color === 'frost' ? GLOW.cyan : b.color === 'holy' ? GLOW.gold : GLOW.fire, x, b.y, b.r * 3.2 * (0.6 + k), 1 - k);
         drawGlow(GLOW.white, x, b.y, b.r * 1.2 * (1 - k), 1 - k);
       }
     }
@@ -1790,15 +2032,6 @@
     for (const e of S.embers) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(S.t * 3 + e.ph); ctx.fillStyle = '#9dffc4'; ctx.fillRect(e.x, e.y, 1.6, 1.6); }
     ctx.globalAlpha = 1;
     // meteor
-    if (S.meteor) {
-      const m = S.meteor, k = m.t / m.dur;
-      const x = m.tx + 120 * (1 - k), y = -40 + (m.ty + 40) * k, sx = px(x, y);
-      for (let i = 0; i < 6; i++) drawGlow(GLOW.fire, px(x + i * 10, y - i * 14), y - i * 14, 60 - i * 7, 0.6 - i * 0.08);
-      drawGlow(GLOW.white, sx, y, 26, 1);
-      ctx.restore(); ctx.save();
-      ctx.strokeStyle = 'rgba(255,90,40,0.8)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(px(m.tx, m.ty), m.ty, 75 * depth(m.ty), 26 * depth(m.ty), 0, 0, TAU); ctx.stroke();
-    }
     ctx.restore();
     for (const t of S.texts) {
       ctx.globalAlpha = clamp(t.life * 1.6, 0, 1);
@@ -1885,13 +2118,16 @@
     ctx.drawImage(road, 0, 0, W, H);
     S.lanes.forEach(drawLane);
     drawTorches();
+    drawCraters();
     drawSlam();
     drawSwingZone();
+    drawBombs();
     drawCrates();
     drawEnemies();
     drawShots();
     drawSquad();
     drawFx();
+    drawMeteor();
     drawFog();
     ctx.restore();
     ctx.drawImage(vig, 0, 0, W, H);
@@ -1902,7 +2138,7 @@
   // ════════════════════════════════════════════════════════════════════
   //  Loop & UI
   // ════════════════════════════════════════════════════════════════════
-  const meteorBtn = $('meteor');
+  const meteorBtn = $('meteor'), bombBtn = $('bomb');
   let last = 0;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000 || 0); last = now;
@@ -1913,6 +2149,14 @@
         const p = Math.round(S.meteorCharge / S.meteorNeed * 100);
         meteorBtn.style.setProperty('--p', p);
         meteorBtn.classList.toggle('ready', p >= 100 && !S.meteor && !S.over);
+        const B = S.bomb, def = BOMBS[B.next];
+        bombBtn.style.setProperty('--bc', def.color);
+        bombBtn.style.setProperty('--bp', B.charges >= BOMB_MAX ? 100 : Math.round(B.t / BOMB_RECHARGE * 100));
+        if (bombBtn.dataset.k !== B.next + B.charges) {
+          bombBtn.dataset.k = B.next + B.charges;
+          $('bombIcon').textContent = def.icon; $('bombName').textContent = def.name; $('bombCount').textContent = B.charges;
+          bombBtn.classList.toggle('empty', B.charges < 1);
+        }
       }
     }
     requestAnimationFrame(frame);
@@ -1920,10 +2164,11 @@
 
   const overlays = ['menu', 'win', 'lose', 'shopOv'];
   let shopReturn = 'menu';
-  function show(id) { overlays.forEach(o => { $(o).hidden = o !== id; }); meteorBtn.hidden = id !== null; }
+  function show(id) { overlays.forEach(o => { $(o).hidden = o !== id; }); meteorBtn.hidden = id !== null; bombBtn.hidden = id !== null; }
 
   function start(L) {
     level = L; newLevel(L); show(null); running = true; initAudio();
+    S.banner = { text: FACTIONS[S.fac].name.toUpperCase() + (S.mix ? ' + ' + FACTIONS[S.fac2].name.split(' ')[0].toUpperCase() : ''), life: 2.6 };
   }
   function showEnd() {
     running = false;
@@ -1974,6 +2219,8 @@
   $('resetBtn').addEventListener('click', () => { save.level = 1; persist(); refreshMenu(); });
   meteorBtn.addEventListener('pointerdown', e => e.stopPropagation());
   meteorBtn.addEventListener('click', () => fireMeteor());
+  bombBtn.addEventListener('pointerdown', e => e.stopPropagation());
+  bombBtn.addEventListener('click', () => throwBomb());
   $('mute').addEventListener('click', e => {
     muted = !muted;
     e.currentTarget.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
