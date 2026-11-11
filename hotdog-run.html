@@ -91,7 +91,8 @@
       <li>Drag left and right (or use the arrow keys).</li>
       <li>Run through a blue square to change your crowd: <b>+</b> adds puppies, <b>−</b> takes them away, <b>×</b> multiplies (from level 11). Woof!</li>
       <li>Nothing can hurt the hot dog, but any puppy hit by an arrow, saw, laser or spikes is lost!</li>
-      <li>Laser walls: run through the green gap. Spikes: wait for them to go down.</li>
+      <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
+      <li>Watch out for swinging hammers and rolling boulders too.</li>
       <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3…</li>
       <li>Reach the top to open the treasure chest!</li>
     </ul>
@@ -221,8 +222,33 @@ function makeLevel(lv) {
         objs.push({ t: 'spin', z: z0, x: R(-0.6, 0.6), len: Math.min(3.2, 2.6 + lv * 0.03), ang: r() * 6, sp });
       }
     },
+    hole(z0) {
+      const d = Math.min(4.5, 3 + lv * 0.06);
+      const k = r();
+      if (k < 0.35) { // one side of the road is a hole
+        const left = r() < 0.5;
+        objs.push({ t: 'hole', z: z0, x0: left ? -ROAD : 0.4, x1: left ? -0.4 : ROAD, d });
+      } else if (k < 0.65) { // hole in the middle, narrow paths down the sides
+        const w = Math.min(2.6, 1.6 + lv * 0.05);
+        objs.push({ t: 'hole', z: z0, x0: -w, x1: w, d });
+      } else { // two holes, zig-zag between them
+        const left = r() < 0.5;
+        objs.push({ t: 'hole', z: z0, x0: left ? -ROAD : 0.6, x1: left ? -0.6 : ROAD, d: 3 });
+        objs.push({ t: 'hole', z: z0 + 10, x0: left ? 0.6 : -ROAD, x1: left ? ROAD : -0.6, d: 3 });
+      }
+    },
+    hammer(z0) {
+      const sp = R(1.4, 2.0) + lv * 0.02;
+      objs.push({ t: 'hammer', z: z0, ph: r() * 6, sp, hx: 0, hy: 4 });
+      if (lv >= 13) objs.push({ t: 'hammer', z: z0 + 5, ph: r() * 6 + 1.5, sp, hx: 0, hy: 4 });
+    },
+    boulder(z0) {
+      const n = lv >= 10 ? 2 : 1;
+      const lanes = [-3, 0, 3].sort(() => r() - 0.5);
+      for (let k = 0; k < n; k++) objs.push({ t: 'boulder', z: z0 + 4 + k * 7, x: lanes[k], r: 1.05, rolling: false, rot: 0, hits: 0 });
+    },
     spikes(z0) {
-      const per = Math.max(1.2, 2.4 - lv * 0.05);
+      const per = Math.max(2.6, 3.8 - lv * 0.05);
       const upFrom = lv < 6 ? 0.62 : 0.55; // spikes stay up for less of the time on early levels
       const lanes = lv < 6 ? [[-ROAD, 0], [0, ROAD]] : [[-ROAD, -1.67], [-1.67, 1.67], [1.67, ROAD]];
       const d = Math.min(4, 2.4 + lv * 0.06);
@@ -233,6 +259,9 @@ function makeLevel(lv) {
   if (lv >= 2) pool.push('laser');
   if (lv >= 4) pool.push('spin');
   if (lv >= 6) pool.push('saws2');
+  pool.push('hole');
+  if (lv >= 3) pool.push('boulder');
+  if (lv >= 5) pool.push('hammer');
   const anyObstacle = z0 => add[pool[(r() * pool.length) | 0]](z0);
   const extraChance = lv <= 2 ? 0.1 : Math.min(0.85, 0.1 + lv * 0.05);
 
@@ -273,7 +302,7 @@ function makeLevel(lv) {
   }
   // Make sure the treasure is always reachable by picking the best squares:
   // add extra pairs of squares (still only −15 … +20) until there are enough.
-  const target = need * (lv <= 5 ? 2.0 : 1.7);
+  const target = need * (lv <= 3 ? 2.8 : lv <= 6 ? 2.2 : 1.8);
   for (let extra = 0; best < target && extra < 12; extra++) {
     const a = useTimes && best >= 8 && r() < 0.4 ? { op: '×', val: 2 } : { op: '+', val: randInt(14, MAX_PLUS) };
     const b = { op: '-', val: randInt(5, MAX_MINUS) };
@@ -292,7 +321,7 @@ function makeLevel(lv) {
 let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
-let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [];
+let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [];
 // Puppy coats [body, ears]
 const COATS = [['#f2c38f', '#a8682f'], ['#ffffff', '#c9a27a'], ['#3a3a3a', '#1e1e1e'], ['#a0522d', '#5e2f14'], ['#e8d5b5', '#8a6a48'], ['#c98a4b', '#6b3518'], ['#d9d9d9', '#555555']];
 
@@ -300,7 +329,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = [];
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = [];
   syncMembers();
   camZ = player.z - CAM_BACK;
   state = 'run';
@@ -337,10 +366,11 @@ function burst(x, y, z, color, n) {
   }
 }
 
-function killMember(i) {
+function killMember(i, fall) {
   const m = members[i];
   const rep = Math.max(1, Math.round(count / members.length));
-  burst(m.x, 0.5, player.z + m.oz, '#e63946', 5);
+  if (fall) fallers.push({ x: m.x, z: player.z + m.oz, coat: m.coat, spot: m.spot, ph: m.ph, t: 0 });
+  else burst(m.x, 0.5, player.z + m.oz, '#e63946', 5);
   members.splice(i, 1);
   count = Math.max(0, count - rep);
   lossAcc += rep;
@@ -470,7 +500,7 @@ function updateRun(dt) {
     if (Math.abs(a.x) > ROAD + 4) { a.gone = true; continue; }
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - a.z) < 0.45 && Math.abs(m.x - a.x) < 0.55) killMember(i);
+      if (Math.abs(mz - a.z) < 0.45 && Math.abs(m.x - a.x) < 0.55) { killMember(i); a.gone = true; break; } // an arrow stops in the first puppy it hits
     }
   }
 
@@ -500,8 +530,11 @@ function updateRun(dt) {
     if (o.t !== 'spikes') continue;
     const f = (((time + o.ph) % o.per) + o.per) % o.per / o.per;
     const uf = o.upFrom || 0.5;
-    o.up = o.always || f > uf;
-    o.warn = !o.always && f > uf - 0.18 && f <= uf;
+    const wantUp = o.always || f > uf;
+    // spikes rise slowly (about 0.8 s) and only hurt once they are more than half way up
+    o.h = o.always ? 1 : clamp((o.h || 0) + (wantUp ? 1.25 : -2.5) * dt, 0, 1);
+    o.up = o.h > 0.55;
+    o.warn = !o.always && ((f > uf - 0.25 && f <= uf) || (wantUp && !o.up));
     if (!o.up || Math.abs(o.z - player.z) > 16) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
@@ -509,8 +542,47 @@ function updateRun(dt) {
     }
   }
 
+  // Holes: puppies that run over one fall in; the hot dog just hops over
+  player.jump = 0;
+  for (const o of objs) {
+    if (o.t !== 'hole' || Math.abs(o.z - player.z) > 16) continue;
+    if (player.z >= o.z - 0.3 && player.z <= o.z + o.d + 0.3 && player.x >= o.x0 - 0.3 && player.x <= o.x1 + 0.3) {
+      player.jump = Math.sin(Math.PI * clamp((player.z - o.z + 0.3) / (o.d + 0.6), 0, 1)) * 1.1;
+    }
+    for (let i = members.length - 1; i >= 0; i--) {
+      const m = members[i], mz = player.z + m.oz;
+      if (mz > o.z + 0.15 && mz < o.z + o.d - 0.15 && m.x > o.x0 + 0.15 && m.x < o.x1 - 0.15) killMember(i, true);
+    }
+  }
+  // Swinging hammers: a big mallet swinging side to side across the road
+  for (const o of objs) {
+    if (o.t !== 'hammer') continue;
+    const a = 1.05 * Math.sin(time * o.sp + o.ph);
+    o.ang = a; o.hx = 4.0 * Math.sin(a); o.hy = 4.6 - 4.0 * Math.cos(a);
+    if (Math.abs(o.z - player.z) > 14 || o.hy > 1.4) continue;
+    for (let i = members.length - 1; i >= 0; i--) {
+      const m = members[i], mz = player.z + m.oz;
+      if (Math.abs(mz - o.z) < 0.55 && Math.abs(m.x - o.hx) < 0.8) killMember(i);
+    }
+  }
+  // Rolling boulders: start rolling down the road towards you
+  for (const o of objs) {
+    if (o.t !== 'boulder' || o.gone) continue;
+    if (!o.rolling && o.z - player.z < 34) o.rolling = true;
+    if (o.rolling && o.z > player.z - 12) { o.z -= 6 * dt; o.rot -= 6 * dt / o.r; }
+    if (Math.abs(o.z - player.z) > 8) continue;
+    for (let i = members.length - 1; i >= 0; i--) {
+      const m = members[i], dx = m.x - o.x, dz = player.z + m.oz - o.z;
+      if (dx * dx + dz * dz < o.r * o.r) {
+        killMember(i);
+        // the boulder smashes to bits after squashing a few puppies
+        if (++o.hits >= 6) { o.gone = true; burst(o.x, o.r, o.z, '#8a7f6b', 24); break; }
+      }
+    }
+  }
+
   // Puppies squeeze in close behind the hot dog when lasers or spikes are coming
-  const laserNear = objs.some(o => (o.t === 'laser' || o.t === 'spikes' || o.t === 'spin') && o.z - player.z > -6 && o.z - player.z < 9);
+  const laserNear = objs.some(o => (o.t === 'laser' || o.t === 'spikes' || o.t === 'spin' || o.t === 'hole') && o.z - player.z > -6 && o.z - player.z < 9);
   squeeze += ((laserNear ? 0.4 : 1) - squeeze) * Math.min(1, dt * 6);
 
   // Remember where the hot dog has been, so the puppies follow his path
@@ -545,6 +617,8 @@ function updateEffects(dt) {
     p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vy -= 12 * dt;
   }
   parts = parts.filter(p => p.t < 0.8);
+  for (const f of fallers) f.t += dt;
+  fallers = fallers.filter(f => f.t < 0.7);
   shake = Math.max(0, shake - dt);
 }
 
@@ -807,8 +881,8 @@ function drawSpikes(o) {
     for (let xx = o.x0 + 0.35; xx < o.x1 - 0.1; xx += stepX) {
       const p = P(xx, 0, zz);
       if (!p) continue;
-      if (o.up) {
-        const t = P(xx, 0.55, zz);
+      if (o.h > 0.03) {
+        const t = P(xx, 0.55 * o.h, zz);
         ctx.fillStyle = '#e9ecef';
         ctx.beginPath(); ctx.moveTo(p.x - 0.13 * p.s, p.y); ctx.lineTo(t.x, t.y); ctx.lineTo(p.x + 0.13 * p.s, p.y); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#adb5bd';
@@ -817,6 +891,50 @@ function drawSpikes(o) {
         ctx.fillStyle = '#4a5160'; ellipse(ctx, p.x, p.y, 0.07 * p.s, 0.03 * p.s); ctx.fill();
       }
     }
+  }
+}
+
+function drawHole(o) {
+  const a = P(o.x0, 0.01, o.z), b = P(o.x1, 0.01, o.z), c2 = P(o.x1, 0.01, o.z + o.d), d = P(o.x0, 0.01, o.z + o.d);
+  if (!a || !c2) return;
+  // dark pit with a lighter rim and a peek of the inside wall
+  ctx.fillStyle = '#8b5a2b'; quad(a, b, c2, d); ctx.fill();
+  const ia = P(o.x0 + 0.12, 0.01, o.z + 0.1), ib = P(o.x1 - 0.12, 0.01, o.z + 0.1), ic = P(o.x1 - 0.12, 0.01, o.z + o.d - 0.1), id = P(o.x0 + 0.12, 0.01, o.z + o.d - 0.1);
+  ctx.fillStyle = '#1b1208'; quad(ia, ib, ic, id); ctx.fill();
+  const wb = P(o.x1 - 0.12, 0.01, o.z + o.d - 0.9) , wa = P(o.x0 + 0.12, 0.01, o.z + o.d - 0.9);
+  if (wa && wb) { ctx.fillStyle = '#4a2f16'; quad(id, ic, wb, wa); ctx.fill(); }
+}
+function drawHammer(o) {
+  const pv = P(o.hx * 0, 4.6, o.z), base = P(0, 0, o.z);
+  if (!pv || !base) return;
+  const s = base.s;
+  // frame: two posts and a top beam
+  const lb = P(-ROAD - 0.4, 0, o.z), lt = P(-ROAD - 0.4, 4.8, o.z), rb = P(ROAD + 0.4, 0, o.z), rt = P(ROAD + 0.4, 4.8, o.z);
+  ctx.strokeStyle = '#6b4423'; ctx.lineWidth = Math.max(2, 0.22 * s); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(lb.x, lb.y); ctx.lineTo(lt.x, lt.y); ctx.lineTo(rt.x, rt.y); ctx.lineTo(rb.x, rb.y); ctx.stroke();
+  // arm and mallet head
+  const head = P(o.hx, o.hy, o.z);
+  ctx.strokeStyle = '#a47148'; ctx.lineWidth = Math.max(2, 0.12 * s);
+  ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(head.x, head.y); ctx.stroke();
+  ctx.save(); ctx.translate(head.x, head.y); ctx.rotate(-o.ang);
+  ctx.fillStyle = '#e63946'; rr(ctx, -0.8 * s, -0.42 * s, 1.6 * s, 0.84 * s, 0.15 * s); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(-0.8 * s, -0.08 * s, 1.6 * s, 0.16 * s);
+  ctx.fillStyle = '#3b4252'; ctx.fillRect(-0.85 * s, -0.42 * s, 0.12 * s, 0.84 * s); ctx.fillRect(0.73 * s, -0.42 * s, 0.12 * s, 0.84 * s);
+  ctx.restore();
+  ctx.fillStyle = '#3b4252'; ctx.beginPath(); ctx.arc(pv.x, pv.y, 0.15 * s, 0, Math.PI * 2); ctx.fill();
+}
+function drawBoulder(o) {
+  const p = P(o.x, o.r, o.z), g0 = P(o.x, 0, o.z);
+  if (!p) return;
+  const r = o.r * p.s;
+  ctx.fillStyle = 'rgba(0,0,0,0.2)'; ellipse(ctx, g0.x, g0.y, r * 0.95, r * 0.25); ctx.fill();
+  const g = ctx.createRadialGradient(p.x - r * 0.35, p.y - r * 0.35, r * 0.1, p.x, p.y, r);
+  g.addColorStop(0, '#c2b8a3'); g.addColorStop(1, '#7a6f5c');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(60,50,40,0.6)'; ctx.lineWidth = Math.max(1, r * 0.06);
+  for (let k = 0; k < 3; k++) {
+    const a = o.rot + k * 2.1;
+    ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * r * 0.2, p.y + Math.sin(a) * r * 0.9); ctx.lineTo(p.x + Math.cos(a) * r * 0.6, p.y + Math.sin(a) * r * 0.3); ctx.stroke();
   }
 }
 
@@ -942,6 +1060,9 @@ function drawRunScene() {
     } else if (o.t === 'laser') items.push({ z: o.z, f: () => drawLaser(o) });
     else if (o.t === 'spin') items.push({ z: o.z, f: () => drawSpin(o) });
     else if (o.t === 'spikes') items.push({ z: o.z + o.d + 0.5, f: () => drawSpikes(o) });
+    else if (o.t === 'hole') items.push({ z: o.z + o.d + 0.6, f: () => drawHole(o) });
+    else if (o.t === 'hammer') items.push({ z: o.z, f: () => drawHammer(o) });
+    else if (o.t === 'boulder' && !o.gone) items.push({ z: o.z, f: () => drawBoulder(o) });
     else if (o.t === 'arrow') {
       if (o.fired && !o.gone) items.push({ z: o.z, f: () => drawArrow(o) });
       else if (!o.fired && o.z - player.z < 40) items.push({ z: o.z, f: () => drawWarning(o) });
@@ -952,8 +1073,17 @@ function drawRunScene() {
       const z = player.z + m.oz;
       items.push({ z, f: () => { const p = P(m.x, 0, z); if (p) drawPuppy(ctx, p.x, p.y, p.s, m.coat, m.spot, m.ph, true); } });
     }
+    for (const f of fallers) {
+      items.push({ z: f.z, f: () => {
+        const p = P(f.x, -f.t * f.t * 8, f.z);
+        if (!p) return;
+        ctx.save(); ctx.globalAlpha = Math.max(0, 1 - f.t / 0.7);
+        drawPuppy(ctx, p.x, p.y, p.s * (1 - f.t * 0.6), f.coat, f.spot, f.ph, false);
+        ctx.restore();
+      } });
+    }
     items.push({ z: player.z, f: () => {
-      const p = P(player.x, 0, player.z);
+      const p = P(player.x, player.jump || 0, player.z);
       if (p) drawDogBack(ctx, p.x, p.y, p.s, false);
     } });
   }
