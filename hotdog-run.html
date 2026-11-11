@@ -107,6 +107,8 @@
       <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
       <li>Watch out for swinging hammers and rolling boulders too.</li>
       <li>Tap <b>JUMP</b> (or press space) to hop over holes, spikes, lasers and arrows. The puppies jump too! Saws, hammers and boulders are too tall to jump, so dodge them.</li>
+      <li><b>POWER LEASH</b> (the gold square): your whole pack is invincible for 5 seconds!</li>
+      <li>Grab <b>dog biscuits</b> and <b>bacon</b> on the road: they make your puppies tougher, so traps miss them.</li>
       <li>Win a level and the puppies will give you a lick!</li>
       <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3… and on the big levels the top step needs 100!</li>
       <li>Reach the top to open the treasure chest!</li>
@@ -184,6 +186,7 @@ function nice(v) {
   return Math.round(v / 50) * 50;
 }
 function applyOp(n, g) {
+  if (g.op === 'leash') return n;   // the Power Leash doesn't change the number of puppies
   if (g.op === '+') return n + g.val;
   if (g.op === '-') return Math.max(0, n - g.val);
   return n * g.val;
@@ -285,10 +288,11 @@ function makeLevel(lv) {
   const anyObstacle = z0 => add[pool[(r() * pool.length) | 0]](z0);
   const extraChance = lv <= 2 ? 0.1 : Math.min(0.85, 0.1 + lv * 0.05);
 
+  let leashes = 0;
   for (let i = 0; i < segs; i++) {
     const roll = r();
     let type;
-    if (i === 0 || roll < 0.42) type = 'pair';
+    if (i === 0 || i === 2 || roll < 0.42) type = 'pair';
     else if (roll < 0.62) type = 'single';
     else type = 'obstacle';
 
@@ -302,7 +306,9 @@ function makeLevel(lv) {
     };
 
     if (type === 'pair') {
-      const a = good(), b = bad(), left = r() < 0.5;
+      const a = good(), left = r() < 0.5;
+      // A Power Leash square sometimes sits in the blocks instead of the bad one (always once, early on)
+      const b = (i === 2 || (leashes < 2 && i > 2 && r() < 0.2)) ? (leashes++, { op: 'leash', val: 0 }) : bad();
       const ga = left ? a : b, gb = left ? b : a;
       objs.push({ t: 'gate', z, x0: LEFT[0], x1: LEFT[1], op: ga.op, val: ga.val });
       objs.push({ t: 'gate', z, x0: RIGHT[0], x1: RIGHT[1], op: gb.op, val: gb.val });
@@ -318,6 +324,8 @@ function makeLevel(lv) {
       anyObstacle(z);
     }
     if (i > 0 && r() < extraChance) anyObstacle(z + 11);
+    // Snacks to grab on the road, sometimes in tricky spots
+    if (i > 0 && r() < 0.5) objs.push({ t: 'snack', kind: lv >= 3 && r() < 0.25 ? 'bacon' : 'biscuit', z: z + (r() < 0.5 ? 6 : 16), x: R(-3.8, 3.8), taken: false });
     z += 22;
   }
   // Make sure the treasure is always reachable by picking the best squares:
@@ -366,7 +374,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = [];
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; leashT = 0; armour = 0;
   syncMembers();
   camZ = player.z - CAM_BACK;
   state = 'run';
@@ -404,8 +412,19 @@ function burst(x, y, z, color, n) {
   }
 }
 
+// Power-ups
+const LEASH_TIME = 5;                       // seconds of invincibility from a Power Leash
+const SNACKS = { biscuit: { armour: 6, label: 'Dog biscuit' }, bacon: { armour: 15, label: 'Bacon!' } };
+let leashT = 0, armour = 0;
 function killMember(i, fall) {
   const m = members[i];
+  if (leashT > 0) return false;                         // Power Leash: nothing can hurt the pack
+  if (m.safe > 0) return false;                         // this puppy was just saved by a snack
+  if (armour > 0) {                                     // snacks make the puppies tougher
+    armour--; m.safe = 0.7;
+    burst(m.x, 0.6, player.z + m.oz, '#ffd166', 4); clink();
+    return false;
+  }
   const rep = Math.max(1, Math.round(count / members.length));
   if (fall) fallers.push({ x: m.x, z: player.z + m.oz, coat: m.coat, spot: m.spot, ph: m.ph, t: 0 });
   else burst(m.x, 0.5, player.z + m.oz, '#e63946', 5);
@@ -413,6 +432,7 @@ function killMember(i, fall) {
   count = Math.max(0, count - rep);
   lossAcc += rep;
   syncMembers();
+  return true;
 }
 // ───────────────────────── Sound: woofs, music, jingles (all made with Web Audio, no sound files) ─────────────────────────
 let actx = null, master = null, sfxBus = null, musicBus = null, noiseBuf = null, gritCurve = null;
@@ -501,6 +521,21 @@ function boing() {
   o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + 0.32);
 }
 // Wet licking: quick "lap lap lap" (tongue smacks + wet noise), then a big slurp
+function powerUpSound() {
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01;
+  [67, 71, 74, 79, 83, 86].forEach((n, i) => tone(t + i * 0.05, n, 0.18, 'square', 0.2, sfxBus));
+}
+function crunch() {             // munching a snack
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01;
+  for (let k = 0; k < 3; k++) noise(t + k * 0.07, 0.05, 'lowpass', 1800, 0.7, 0.9, sfxBus);
+  tone(t + 0.22, 84, 0.12, 'triangle', 0.25, sfxBus); tone(t + 0.3, 88, 0.16, 'triangle', 0.25, sfxBus);
+}
+function clink() {              // a snack-tough puppy shrugs off a trap
+  if (!actx || muted) return;
+  tone(actx.currentTime + 0.005, 96, 0.08, 'triangle', 0.18, sfxBus);
+}
 function lickSound() {
   if (!actx || muted) return;
   const t0 = actx.currentTime + 0.01;
@@ -634,7 +669,13 @@ function updateRun(dt) {
     const same = objs.filter(g => g.t === 'gate' && g.z === o.z);
     const hit = same.find(g => player.x >= g.x0 - 0.25 && player.x <= g.x1 + 0.25);
     same.forEach(g => { g.used = true; });
-    if (hit) {
+    if (hit && hit.op === 'leash') {
+      hit.hit = true;
+      leashT = LEASH_TIME;
+      addFloat(player.x, 2.6, player.z + 1, 'POWER LEASH!', '#ffc531');
+      burst(player.x, 1, player.z, '#ffc531', 20);
+      powerUpSound(); woof(true); player.woofT = 0.8;
+    } else if (hit) {
       hit.hit = true;
       const before = count;
       count = Math.min(99999, Math.floor(applyOp(count, hit)));
@@ -756,6 +797,23 @@ function updateRun(dt) {
   // Puppies squeeze in close behind the hot dog when lasers or spikes are coming
   const laserNear = objs.some(o => (o.t === 'laser' || o.t === 'spikes' || o.t === 'spin' || o.t === 'hole') && o.z - player.z > -6 && o.z - player.z < 9);
   squeeze += ((laserNear ? 0.4 : 1) - squeeze) * Math.min(1, dt * 6);
+
+  // Power-up timers and snacks
+  leashT = Math.max(0, leashT - dt);
+  for (const m of members) if (m.safe > 0) m.safe -= dt;
+  for (const o of objs) {
+    if (o.t !== 'snack' || o.taken || Math.abs(o.z - player.z) > 3) continue;
+    let got = Math.abs(o.z - player.z) < 0.9 && Math.abs(o.x - player.x) < 1.1;
+    for (const m of members) if (!got && Math.abs(player.z + m.oz - o.z) < 0.6 && Math.abs(m.x - o.x) < 0.7) got = true;
+    if (got) {
+      o.taken = true;
+      const sn = SNACKS[o.kind];
+      armour += sn.armour;
+      addFloat(o.x, 2.2, o.z, `${sn.label} +${sn.armour} 🛡`, '#ffb703');
+      burst(o.x, 1, o.z, o.kind === 'bacon' ? '#ff6b6b' : '#e9c46a', 14);
+      crunch();
+    }
+  }
 
   // Remember where the hot dog has been, so the puppies follow his path
   trail.push({ z: player.z, x: player.x });
@@ -1131,6 +1189,7 @@ function drawGate(g) {
   if (!a || !b) return;
   const x = a.x, y = b.y, w = b.x - a.x, hh = a.y - b.y;
   const faded = g.used && !g.hit;
+  if (g.op === 'leash') { drawLeashGate(g, x, y, w, hh, a.s, faded); return; }
   ctx.fillStyle = faded ? 'rgba(47,140,255,0.12)' : g.hit ? 'rgba(120,200,255,0.25)' : 'rgba(47,140,255,0.42)';
   ctx.fillRect(x, y, w, hh);
   ctx.strokeStyle = faded ? 'rgba(170,215,255,0.35)' : 'rgba(200,232,255,0.95)';
@@ -1140,6 +1199,47 @@ function drawGate(g) {
     const sym = g.op === '-' ? '−' : g.op;
     outlinedText(ctx, sym + g.val, x + w / 2, y + hh / 2, Math.min(w * 0.38, 1.35 * a.s), '#ffffff', '#11408a');
   }
+}
+
+function drawLeashGate(g, x, y, w, hh, s, faded) {
+  const glow = 0.5 + 0.5 * Math.sin(time * 6);
+  ctx.fillStyle = faded ? 'rgba(47,140,255,0.12)' : `rgba(47,140,255,${0.38 + glow * 0.1})`;
+  ctx.fillRect(x, y, w, hh);
+  ctx.strokeStyle = faded ? 'rgba(255,214,102,0.35)' : '#ffc531';
+  ctx.lineWidth = Math.max(2, 0.14 * s);
+  ctx.strokeRect(x, y, w, hh);
+  if (faded) return;
+  // a little leash and collar picture
+  const cx = x + w / 2, cy = y + hh * 0.36, r = Math.min(w, hh) * 0.13;
+  ctx.strokeStyle = '#ffc531'; ctx.lineWidth = Math.max(2, r * 0.3);
+  ctx.beginPath(); ctx.arc(cx - r * 1.2, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - r * 0.2, cy); ctx.bezierCurveTo(cx + r, cy - r * 1.5, cx + r * 1.4, cy + r * 1.5, cx + r * 2.4, cy - r * 0.2); ctx.stroke();
+  ctx.fillStyle = '#ffc531'; ctx.fillRect(cx + r * 2.2, cy - r * 0.8, r * 0.7, r * 1.2);
+  const fs = Math.min(w * 0.2, 0.7 * s);
+  outlinedText(ctx, 'POWER', cx, y + hh * 0.64, fs, '#ffe08a', '#7a4e00');
+  outlinedText(ctx, 'LEASH', cx, y + hh * 0.64 + fs * 1.05, fs, '#ffe08a', '#7a4e00');
+}
+function drawSnack(o) {
+  const bob = Math.sin(time * 4 + o.x) * 0.15;
+  const p = P(o.x, 0.9 + bob, o.z), g = P(o.x, 0, o.z);
+  if (!p) return;
+  const s = p.s, spin = Math.cos(time * 3 + o.z);
+  if (g) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ellipse(ctx, g.x, g.y, 0.4 * s, 0.12 * s); ctx.fill(); }
+  ctx.fillStyle = 'rgba(255,230,120,0.35)'; ellipse(ctx, p.x, p.y, 0.75 * s, 0.55 * s); ctx.fill();   // sparkle glow
+  ctx.save(); ctx.translate(p.x, p.y); ctx.scale(Math.max(0.25, Math.abs(spin)), 1);
+  if (o.kind === 'biscuit') {                     // bone-shaped dog biscuit
+    ctx.fillStyle = '#d9a35b'; ctx.strokeStyle = '#a86f2c'; ctx.lineWidth = Math.max(1, 0.05 * s);
+    rr(ctx, -0.42 * s, -0.12 * s, 0.84 * s, 0.24 * s, 0.1 * s); ctx.fill(); ctx.stroke();
+    for (const ex of [-0.45, 0.45]) for (const ey of [-0.13, 0.13]) { ctx.beginPath(); ctx.arc(ex * s, ey * s, 0.14 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  } else {                                        // wavy strip of bacon
+    ctx.lineCap = 'round';
+    for (const [col, wdt, off] of [['#b5172f', 0.26, 0], ['#ffd6d6', 0.07, -0.04], ['#ffd6d6', 0.05, 0.06]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = wdt * s; ctx.beginPath();
+      for (let k = 0; k <= 12; k++) { const xx = (-0.5 + k / 12) * s, yy = (Math.sin(k * 1.1 + time * 3) * 0.08 + off) * s; k ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 function drawTower(z) {
@@ -1236,6 +1336,7 @@ function drawRunScene() {
     } else if (o.t === 'laser') items.push({ z: o.z, f: () => drawLaser(o) });
     else if (o.t === 'spin') items.push({ z: o.z, f: () => drawSpin(o) });
     else if (o.t === 'spikes') items.push({ z: o.z + o.d + 0.5, f: () => drawSpikes(o) });
+    else if (o.t === 'snack' && !o.taken) items.push({ z: o.z, f: () => drawSnack(o) });
     else if (o.t === 'hole') items.push({ z: o.z + o.d + 0.6, f: () => drawHole(o) });
     else if (o.t === 'hammer') items.push({ z: o.z, f: () => drawHammer(o) });
     else if (o.t === 'boulder' && !o.gone) items.push({ z: o.z, f: () => drawBoulder(o) });
@@ -1261,6 +1362,21 @@ function drawRunScene() {
         ctx.save(); ctx.globalAlpha = Math.max(0, 1 - f.t / 0.7);
         drawPuppy(ctx, p.x, p.y, p.s * (1 - f.t * 0.6), f.coat, f.spot, f.ph, false);
         ctx.restore();
+      } });
+    }
+    if (leashT > 0) {
+      items.push({ z: player.z + 0.6, f: () => {
+        const fade = Math.min(1, leashT) * (leashT < 1.5 ? 0.6 + 0.4 * Math.sin(time * 20) : 1); // flickers when about to run out
+        const g = P(player.x, 0, player.z - 1.2);
+        if (g) { ctx.fillStyle = `rgba(255,197,49,${0.22 * fade})`; ellipse(ctx, g.x, g.y, 3.2 * g.s, 1.3 * g.s); ctx.fill(); }
+        const d = P(player.x, 0.5 + (player.jump || 0), player.z);
+        if (!d) return;
+        ctx.strokeStyle = `rgba(255,197,49,${0.85 * fade})`; ctx.lineWidth = Math.max(1.5, d.s * 0.05);
+        for (let k = 0; k < Math.min(members.length, 14); k++) {
+          const m = members[k], mz = player.z + m.oz, q = P(m.x, 0.35 + airAt(mz), mz);
+          if (!q) continue;
+          ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo((d.x + q.x) / 2, Math.max(d.y, q.y) + 0.3 * q.s, q.x, q.y); ctx.stroke();
+        }
       } });
     }
     items.push({ z: player.z, f: () => {
@@ -1337,6 +1453,21 @@ function drawHud(progress) {
   ctx.lineWidth = 3; ctx.strokeStyle = '#1d2433'; ctx.strokeText(String(save.coins), W - 58, top + 13);
   ctx.fillStyle = '#fff'; ctx.fillText(String(save.coins), W - 58, top + 13);
   outlinedText(ctx, `Ladder needs ${level.need}`, left + bw / 2, top + 48, 13, '#fff', '#1d2433');
+  let y2 = top + 70;
+  if (leashT > 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; rr(ctx, left, y2, bw, 16, 8); ctx.fill();
+    ctx.fillStyle = '#ffc531'; rr(ctx, left, y2, Math.max(16, bw * leashT / LEASH_TIME), 16, 8); ctx.fill();
+    outlinedText(ctx, 'POWER LEASH', left + bw / 2, y2 + 8.5, 11, '#ffffff', '#7a4e00');
+    y2 += 24;
+  }
+  if (armour > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; rr(ctx, W - 92, top + 32, 76, 28, 14); ctx.fill();
+    ctx.save(); ctx.translate(W - 74, top + 46); ctx.scale(0.55, 0.55);
+    ctx.fillStyle = '#d9a35b'; rr(ctx, -14, -4, 28, 8, 3); ctx.fill();
+    for (const ex of [-14, 14]) for (const ey of [-4, 4]) { ctx.beginPath(); ctx.arc(ex, ey, 5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    outlinedText(ctx, '🛡' + armour, W - 44, top + 47, 15, '#1d2433', '#ffffff');
+  }
 }
 
 // ───────────────────────── Scene: the ladder ─────────────────────────
