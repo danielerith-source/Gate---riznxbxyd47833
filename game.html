@@ -893,7 +893,7 @@
       fireAcc: 0, shooterIdx: 0, zapT: 0, cracks: [], deathBy: null,
       weapon: 'arrows', weaponT: 0,
       meteorCharge: 0, meteorNeed: Math.max(22, 45 - 4 * save.up.meteor), meteor: null, craters: [],
-      bomb: { charges: 2, t: 0, next: 'fire' }, thrown: [], zones: [],
+      bomb: { charges: 2, t: 0, next: 'fire' }, thrown: [], zones: [], bubbles: [], talkT: 2.5, bossVoice: { isBoss: true, x: 0, y: 0 },
       lanes: [makeLane(LANE_L, lp, big ? 'gold' : 'blue'), makeLane(LANE_R, rp, big ? 'blue' : 'gold')],
       speed: 13 + 1.0 * L,
       boss: { x: W / 2, y: bossY, hp: bossHp, maxHp: bossHp, alive: true, flash: 0, slamT: 5, slam: null, phase: 0, sway: 0, mode: 'march', swing: null, axeA: -Math.PI / 2 },
@@ -973,6 +973,79 @@
     if (e.kind === 'giant' || e.kind === 'brute') e.dmgAcc = (e.dmgAcc || 0) + d;
     if (e.hp <= 0) killEnemy(e);
   }
+  // ── Banter: the horde heckles you as it comes ──
+  const LINES = {
+    legion: ["I've got a bone to pick with you!", "Rattle 'em, lads!", "Back in my day I had a face.", "Who's got my left femur?",
+      "Tibia honest, I'm terrified.", "I'd run, but I've no guts.", "Calcium power!", "Spine-tingling, this.", "Mind the ribs!",
+      "I'm a skeleton crew of one.", "Nobody ever asks how I'm feeling.", "Onwards! Spookily!", "My joints are killing me. Again."],
+    ghoul: ["Braaaains! Or crisps.", "Is that... lunch?", "I'm falling apart here!", "Anyone seen my ear?", "Smells like dinner!",
+      "I skipped breakfast. And death.", "Mmm, archers. Crunchy.", "Fresh meat, two o'clock!", "I only came for the snacks.",
+      "Does this rash look normal?", "Hungry. So hungry."],
+    knight: ["For the Bone King! Probably.", "This armour chafes.", "I can't see a thing in this helm.", "Clank. Clank. Clank.",
+      "Hold the line! Whose line?", "Death before... ah, already dead.", "Who forged this? It's rubbish.", "Formation! FORMATION!",
+      "My visor's stuck again.", "Ten centuries of service. No pension."],
+    wraith: ["Wooooo!", "Boo! ...sorry, force of habit.", "Don't mind me, I'm transparent.", "Sheet happens.", "I'm just passing through.",
+      "I've a haunting feeling about this.", "Ectoplasm everywhere. Ugh.", "Spooky, aren't we?", "Float like a wraith!", "Can you see me? Rude."],
+    frozen: ["Brrr!", "Can't... feel... anything. As usual.", "Who left the crypt door open?", "Chilly!", "I'm a bonesicle."],
+    burning: ["Hot hot hot!", "I'm toast!", "Smells like barbecue!", "Stop, drop and... oh dear.", "Is it warm or is it me?"],
+    holy: ["Ow! That's blessed!", "Not the holy stuff!", "Too bright! TOO BRIGHT!"],
+    death: ["Tell my wife... she's also dead.", "Bad to the bone!", "I'll be back... in pieces.", "Worth it.", "Argh, my everything!", "Not again!"],
+    breach: ["Got one!", "Tag, you're dead!", "Surprise!", "Ha! Through!"],
+    giant: ["BIG BONES! SMALL BRAIN!", "STOMP TIME!", "ME LIKE CRUNCHY ARCHERS!", "WHO SAID I'M HEAVY-BONED?"],
+    boss: ["Bow before the Bone King!", "My axe has your name on it. Spelled wrong.", "Guards! Do your jobs!", "You'll make a lovely femur.",
+      "Come closer, I'm short-sighted!", "I've buried better than you. Literally.", "Kneel! Or don't. I'll get you either way."],
+  };
+  const pickLine = k => { const a = LINES[k]; return a[(Math.random() * a.length) | 0]; };
+  function say(who, line, life = 2.4) {
+    if (!S || S.over || S.bubbles.length >= 4) return;
+    const ax = who.x, ay = who.y;
+    if (S.bubbles.some(b => Math.abs(b.who.x - ax) < 70 && Math.abs(b.who.y - ay) < 50)) return;
+    S.bubbles.push({ who, text: line, life, max: life });
+    if (canPlay('chatter', 120)) for (let i = 0; i < 3; i++) tone(rnd(260, 520), 0.05, 'square', 0.012, rnd(-80, 80), i * 0.06);
+  }
+  const spot = (x, y) => ({ x, y, still: true, k: 1.75, kind: 'grunt' });
+  function updateBanter(dt) {
+    for (let i = S.bubbles.length - 1; i >= 0; i--) {
+      const b = S.bubbles[i]; b.life -= dt;
+      if (b.life <= 0 || (b.who.dead && !b.who.still) || (b.who.isBoss && !S.boss.alive)) S.bubbles.splice(i, 1);
+    }
+    S.talkT -= dt;
+    if (S.talkT > 0 || S.over) return;
+    S.talkT = rnd(1.0, 2.1);
+    const b = S.boss;
+    if (b.alive && b.y > TARGET_Y + 40 && Math.random() < 0.22) { say(S.bossVoice, pickLine('boss'), 2.8); return; }
+    const pool = S.enemies.filter(e => !e.dead && !e.flee && e.y > TARGET_Y + 10 && e.y < LINE_Y - 50);
+    if (!pool.length) return;
+    const e = pool[(Math.random() * pool.length) | 0];
+    const inFire = S.zones.some(z => z.type === 'fire' && Math.hypot(e.x - z.x, (e.y - z.y) * 1.2) < z.r);
+    const key = e.frozen > 0 ? 'frozen' : inFire ? 'burning' : e.kind === 'giant' ? 'giant' : e.fac;
+    say(e, pickLine(key));
+  }
+  function drawBanter() {
+    ctx.font = '600 12px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const b of S.bubbles) {
+      const w = b.who, isBoss = w.isBoss;
+      const wx = isBoss ? S.boss.x : w.x, wy = isBoss ? S.boss.y : w.y;
+      const d = depth(wy), k = isBoss ? BOSS_K * 3.4 : (w.k || 1.75) * (w.kind === 'giant' ? 3.2 : w.kind === 'brute' ? 1.9 : 1);
+      const ax = px(wx, wy), ay = wy - 30 * k * d;
+      // wrap to two lines at most
+      const words = b.text.split(' '), lines = ['']; 
+      for (const word of words) { const t = (lines[lines.length - 1] + ' ' + word).trim(); if (ctx.measureText(t).width > 118 && lines[lines.length - 1]) lines.push(word); else lines[lines.length - 1] = t; }
+      const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 14, th = lines.length * 14 + 8;
+      const pop = Math.min(1, (b.max - b.life) / 0.15), fade = Math.min(1, b.life / 0.35);
+      const bx = clamp(ax, tw / 2 + 4, W - tw / 2 - 4), by = Math.max(ay - th / 2 - 10, 96 + th / 2);
+      ctx.save(); ctx.globalAlpha = fade; ctx.translate(bx, by); ctx.scale(0.6 + 0.4 * pop, 0.6 + 0.4 * pop);
+      ctx.fillStyle = isBoss ? '#f3e6ff' : '#fffaf0'; ctx.strokeStyle = isBoss ? '#5a2a8a' : '#1a1420'; ctx.lineWidth = 1.5;
+      rrect(ctx, -tw / 2, -th / 2, tw, th, 7); ctx.fill(); ctx.stroke();
+      const tx = clamp(ax - bx, -tw / 2 + 10, tw / 2 - 10);
+      ctx.beginPath(); ctx.moveTo(tx - 5, th / 2 - 1); ctx.lineTo(tx + (ax - bx) * 0.1, th / 2 + 9); ctx.lineTo(tx + 5, th / 2 - 1); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(tx - 5, th / 2); ctx.lineTo(tx + (ax - bx) * 0.1, th / 2 + 9); ctx.lineTo(tx + 5, th / 2); ctx.stroke();
+      ctx.fillStyle = '#1a1420';
+      lines.forEach((l, i) => ctx.fillText(l, 0, (i - (lines.length - 1) / 2) * 14));
+      ctx.restore();
+    }
+  }
+
   function killEnemy(e) {
     e.dead = true;
     const k = KINDS[e.kind];
@@ -983,6 +1056,7 @@
     S.corpses.push({ kind: e.kind, spr: e.spr, k: e.k, x: e.x, y: e.y, life: 0.6, dir: Math.random() < 0.5 ? -1 : 1 });
     if (S.corpses.length > 80) S.corpses.shift();
     if (e.kind === 'bomber') { explodeAt(e.x, e.y - 10, 50, 6 * S.u, false); }
+    if (Math.random() < (e.kind === 'giant' ? 1 : 0.035) && e.y > TARGET_Y) say(spot(e.x, e.y), pickLine('death'), 1.8);
     if (e.kind === 'brute' || e.kind === 'giant' || Math.random() < 0.03) {
       const pool = ['triple', 'fire', 'ballista', ...(S.L >= 3 ? ['storm'] : [])];
       S.crates.push({ x: e.x, y: e.y, w: pool[(Math.random() * pool.length) | 0], bob: 0 });
@@ -1069,10 +1143,11 @@
     if (b.type === 'fire') {
       explodeAt(b.x1, b.y1, 48, 1.4 * u * k, false);
       S.zones.push({ type: 'fire', x: b.x1, y: b.y1, r: 62, t: 4, max: 4, dps: 1.1 * u * k });
+      setTimeout(() => { const e = S && S.enemies.find(e => !e.dead && Math.hypot(e.x - b.x1, e.y - b.y1) < 60); if (e) say(e, pickLine('burning')); }, 250);
       floatText(b.x1, b.y1 - 40, 'FIRE BOMB', '#ffb36b', 16);
     } else if (b.type === 'frost') {
       boom(b.x1, b.y1, 40, 'frost'); sfx.zap();
-      for (const e of S.enemies) if (!e.dead && !e.flee && Math.hypot(e.x - b.x1, (e.y - b.y1) * 1.2) < 78) { e.frozen = 4; damageEnemy(e, 0.4 * u); }
+      for (const e of S.enemies) if (!e.dead && !e.flee && Math.hypot(e.x - b.x1, (e.y - b.y1) * 1.2) < 78) { e.frozen = 4; damageEnemy(e, 0.4 * u); if (!e.dead && Math.random() < 0.15) say(e, pickLine('frozen')); }
       S.zones.push({ type: 'frost', x: b.x1, y: b.y1, r: 78, t: 4, max: 4 });
       burst(b.x1, b.y1, '#cfefff', 30, 200, 0.8, 3);
       floatText(b.x1, b.y1 - 40, 'FROZEN!', '#bfe9ff', 16);
@@ -1081,7 +1156,7 @@
       for (const e of S.enemies) {
         if (e.dead || e.flee) continue;
         const d = Math.hypot(e.x - b.x1, (e.y - b.y1) * 1.2);
-        if (d < 72) { damageEnemy(e, 2.6 * u * k); if (!e.dead) e.y -= 70 * (1 - d / 72); }
+        if (d < 72) { damageEnemy(e, 2.6 * u * k); if (!e.dead) { e.y -= 70 * (1 - d / 72); if (Math.random() < 0.2) say(e, pickLine('holy')); } }
       }
       if (S.boss.alive && Math.hypot(S.boss.x - b.x1, S.boss.y - 40 - b.y1) < 100) hitBoss(2.6 * u * k * 3);
       S.booms.push({ x: b.x1, y: b.y1, r: 90, life: 0.6, max: 0.6, color: 'ring' });
@@ -1210,7 +1285,7 @@
         if (e.numT <= 0) { e.numT = 0.3; floatText(e.x + rnd(-14, 14), e.y - (e.kind === 'giant' ? 120 : 80) * depth(e.y), String(Math.round(e.dmgAcc)), '#ffe08a', 13); e.dmgAcc = 0; }
       }
       if (e.kind === 'giant' && !e.flee) {
-        if (!e.announced && e.y > 40) { e.announced = true; S.banner = { text: 'A BONE COLOSSUS RISES', life: 2.2 }; sfx.warn(); }
+        if (!e.announced && e.y > 40) { e.announced = true; S.banner = { text: 'A BONE COLOSSUS RISES', life: 2.2 }; sfx.warn(); setTimeout(() => say(e, pickLine('giant'), 2.6), 900); }
         if (e.y > 0 && Math.sin(S.t * 5 + e.ph) > 0.96) { S.shake = Math.max(S.shake, 3); if (canPlay('stomp', 350)) tone(60, 0.15, 'sine', 0.12, -15); }
       }
       if (e.flee) { e.y -= 150 * dt; continue; }
@@ -1229,6 +1304,7 @@
         e.dead = true;
         const k = KINDS[e.kind], loss = k.contact * e.worth;
         S.army -= loss;
+        if (Math.random() < 0.08) say(spot(e.x, LINE_Y - 30), pickLine('breach'), 1.6);
         if (e.kind === 'bomber') { boom(e.x, e.y, 34); sfx.boom(); S.shake = Math.min(12, S.shake + 5); floatText(e.x, e.y - 30, '-' + loss, '#ff6a5f', 18); }
         else if (e.kind === 'giant') { boom(e.x, e.y, 50, 'red'); sfx.slam(); S.shake = 14; floatText(e.x, e.y - 60, '-' + loss, '#ff4a40', 24); }
         else { burst(e.x, e.y - 6, '#9fd4ff', 6, 110); sfx.hurt(); S.shake = Math.min(8, S.shake + 1.2); }
@@ -1253,10 +1329,10 @@
     const b = S.boss;
     b.flash = Math.max(0, b.flash - dt);
     if (b.dmgAcc) { b.numT = (b.numT || 0) - dt; if (b.numT <= 0) { b.numT = 0.25; floatText(b.x + rnd(-24, 24), b.y - 150 * depth(b.y), String(Math.round(b.dmgAcc)), '#ffcf7a', 15); b.dmgAcc = 0; } }
-    if (b.alive && !b.announced && b.y > 40) { b.announced = true; S.banner = { text: 'THE BONE KING ARRIVES', life: 2.4 }; sfx.warn(); }
+    if (b.alive && !b.announced && b.y > 40) { b.announced = true; S.banner = { text: 'THE BONE KING ARRIVES', life: 2.4 }; sfx.warn(); setTimeout(() => say(S.bossVoice, pickLine('boss'), 3), 1200); }
     if (b.alive && live && b.mode === 'march' && b.y >= STOP_Y) {
       b.mode = 'attack'; b.y = STOP_Y; b.slam = null; b.swingT = 0.6;
-      S.banner = { text: 'THE BONE KING RAISES HIS AXE', life: 2.2 }; sfx.warn();
+      S.banner = { text: 'THE BONE KING RAISES HIS AXE', life: 2.2 }; sfx.warn(); say(S.bossVoice, 'Hold still. This won\'t hurt. Much.', 2.6);
     }
     if (b.alive && live && b.mode === 'attack') updateSwing(b, dt);
     if (b.alive && live && b.mode === 'march') {
@@ -1306,6 +1382,8 @@
     }
 
     if (live) updateBombs(dt);
+    S.bossVoice.x = S.boss.x; S.bossVoice.y = S.boss.y;
+    updateBanter(dt);
 
     // crates fall toward the line
     for (let i = S.crates.length - 1; i >= 0; i--) {
@@ -2127,6 +2205,7 @@
     drawShots();
     drawSquad();
     drawFx();
+    drawBanter();
     drawMeteor();
     drawFog();
     ctx.restore();
