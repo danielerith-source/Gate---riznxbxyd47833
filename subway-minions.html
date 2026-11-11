@@ -150,10 +150,10 @@
   let W = 0, H = 0, DPR = 1, F = 1, HORIZON = 0;
 
   const LANE_W = 2.2;
-  const CAM_Y = 3.2, CAM_Z = -7;
+  const CAM_Y = 4.4, CAM_Z = -7;
   const NEAR = CAM_Z + 0.6;
   const FAR = 125;
-  const WALL_X = 4.3, CEIL_Y = 5.6;
+  const WALL_X = 4.3, CEIL_Y = 9.5;
   const TRAIN_H = 2.0, RAMP_LEN = 4;
   const STEP = 0.45;           // how far below a roof you can be and still land on it
   const BOARD_TIME = 20, BOARD_COST = 4, BOARD_LIFT = 0.25;
@@ -639,14 +639,14 @@
       const t = fogT(z);
       for (const sx of [-1, 1]) {
         const x = sx * (WALL_X - 0.01);
-        const p0 = proj(x, 3.9, z), p1 = proj(x, 4.3, z + 1.6);
+        const p0 = proj(x, 6.0, z), p1 = proj(x, 6.4, z + 1.6);
         const cy = (p0.y + p1.y) / 2;
         const g = ctx.createRadialGradient(p0.x, cy, 0, p0.x, cy, 1.6 * p0.s);
         g.addColorStop(0, `rgba(255,200,120,${0.35 * (1 - t)})`);
         g.addColorStop(1, 'rgba(255,200,120,0)');
         ctx.fillStyle = g;
         ctx.fillRect(p0.x - 1.6 * p0.s, cy - 1.6 * p0.s, 3.2 * p0.s, 3.2 * p0.s);
-        poly([proj(x, 3.9, z), proj(x, 3.9, z + 1.6), proj(x, 4.3, z + 1.6), proj(x, 4.3, z)], col(C.lamp, t));
+        poly([proj(x, 6.0, z), proj(x, 6.0, z + 1.6), proj(x, 6.4, z + 1.6), proj(x, 6.4, z)], col(C.lamp, t));
       }
     }
   }
