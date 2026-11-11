@@ -768,29 +768,38 @@
   }
 
   function newLevel(L) {
-    const rows = Math.min(20, 4 + 2 * L);
+    // A continuous mass of skeletons fills the road from the front line back to the Bone King.
     const u = 22 * L;
     const enemies = [];
-    const giantEvery = Math.max(5, 9 - L);
-    for (let r = 0; r < rows; r++) {
-      if (r >= 4 && r % giantEvery === giantEvery - 1) {
-        // a giant fills the whole row, with an empty row behind for its bulk
-        enemies.push(spawnEnemy('giant', W / 2 + rnd(-10, 10), FRONT_Y - r * ROW_GAP, u));
-        r++; continue;
+    const VCOLS = 7, VROW = 19, rows = Math.min(40, 10 + 3 * L);
+    const span = MID[1] - MID[0] - 24, cw = span / (VCOLS - 1);
+    const giantEvery = Math.max(6, 11 - L);
+    const clear = []; // spaces kept free for the big units
+    for (let r = 4; r < rows - 2; r++) {
+      const y = FRONT_Y - r * VROW;
+      if (r % giantEvery === giantEvery - 1) { enemies.push(spawnEnemy('giant', W / 2 + rnd(-8, 8), y, u)); clear.push([W / 2, y - 30, 48, 62]); r += 2; }
+      else if (L >= 3 && Math.random() < Math.min(0.35, 0.08 * L)) {
+        const x = MID[0] + 34 + Math.random() * (span - 44);
+        enemies.push(spawnEnemy('brute', x, y, u)); clear.push([x, y - 18, 28, 34]);
       }
-      for (let c = 0; c < COLS; c++) {
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < VCOLS; c++) {
+        const x = MID[0] + 12 + c * cw + (r % 2 ? cw / 2 : 0) + rnd(-3, 3);
+        if (x > MID[1] - 10) continue;
+        const y = FRONT_Y - r * VROW + rnd(-3, 3);
+        if (clear.some(([cx, cy, rx, ry]) => Math.abs(x - cx) < rx && Math.abs(y - cy) < ry)) continue;
         let kind = 'grunt';
         const q = Math.random();
-        if (L >= 4 && r >= 2 && r < 5 && q < 0.12) kind = 'bomber';
-        else if (L >= 2 && r < 3 && q < 0.55) kind = 'shield';
-        else if (L >= 3 && r >= 4 && q < Math.min(0.06, 0.012 * L)) kind = 'brute';
-        else if (L >= 2 && r >= 3 && q < Math.min(0.16, 0.04 + 0.02 * L)) kind = 'archer';
-        else if (q < 0.05 && L >= 2) kind = 'shield';
-        enemies.push(spawnEnemy(kind, MID[0] + COL_W / 2 + c * COL_W + rnd(-4, 4) + (r % 2 ? 6 : -6), FRONT_Y - r * ROW_GAP, u));
+        if (L >= 4 && r >= 3 && r < 7 && q < 0.08) kind = 'bomber';
+        else if (L >= 2 && r < 3 && q < 0.6) kind = 'shield';
+        else if (L >= 2 && r >= 3 && q < Math.min(0.12, 0.03 + 0.015 * L)) kind = 'archer';
+        else if (q < 0.06 && L >= 2) kind = 'shield';
+        enemies.push(spawnEnemy(kind, x, y, u, { k: GUARD_K, hpMul: 0.45 }));
       }
     }
     // the bulk of the horde is a tight bodyguard packed around the warlord
-    const bossY = FRONT_Y - rows * ROW_GAP - 170;
+    const bossY = FRONT_Y - rows * VROW - 105; // bodyguard overlaps the back of the column: no gap
     const guards = Math.min(240, 70 + 20 * L);
     for (let i = 0, tries = 0; i < guards && tries < 4000; tries++) {
       const a = Math.random() * TAU, rr = Math.sqrt(Math.random());
@@ -824,7 +833,7 @@
   }
   function spawnEnemy(kind, x, y, u, o = {}) {
     const k = KINDS[kind], sz = o.k || kindK(kind), hp = k.hp * u * (o.hpMul || 1);
-    return { kind, x, y, hp, maxHp: hp, r: k.r * sz * 0.85, k: sz, guard: !!o.guard, flash: 0, ph: Math.random() * 10, shootT: rnd(2, 6), dead: false, flee: false };
+    return { kind, x, y, hp, maxHp: hp, r: k.r * sz * 0.85, k: sz, guard: !!o.guard, worth: sz <= GUARD_K ? 1 : UNIT_WORTH, flash: 0, ph: Math.random() * 10, shootT: rnd(2, 6), dead: false, flee: false };
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -894,7 +903,7 @@
   function killEnemy(e) {
     e.dead = true;
     const k = KINDS[e.kind];
-    S.kills++; S.coins += k.coin * UNIT_WORTH; S.meteorCharge = Math.min(S.meteorNeed, S.meteorCharge + (e.kind === 'giant' ? 15 : e.kind === 'brute' ? 6 : 2));
+    S.kills++; S.coins += k.coin * e.worth; S.meteorCharge = Math.min(S.meteorNeed, S.meteorCharge + (e.kind === 'giant' ? 15 : e.kind === 'brute' ? 6 : 2));
     burst(e.x, e.y - 8, '#e9e1c9', e.kind === 'giant' ? 40 : e.kind === 'brute' ? 18 : 8, 120, 0.6, 3);
     burst(e.x, e.y - 14, '#7dffa8', e.kind === 'giant' ? 16 : 4, 60, 0.7, 2);
     if (e.kind === 'giant') { boom(e.x, e.y - 30, 60); sfx.boom(); S.shake = 12; floatText(e.x, e.y - 90, 'COLOSSUS FELLED', '#7dffa8', 20); }
@@ -1033,7 +1042,7 @@
       }
       if (e.y >= LINE_Y) {
         e.dead = true;
-        const k = KINDS[e.kind], loss = k.contact * UNIT_WORTH;
+        const k = KINDS[e.kind], loss = k.contact * e.worth;
         S.army -= loss;
         if (e.kind === 'bomber') { boom(e.x, e.y, 34); sfx.boom(); S.shake = Math.min(12, S.shake + 5); floatText(e.x, e.y - 30, '-' + loss, '#ff6a5f', 18); }
         else if (e.kind === 'giant') { boom(e.x, e.y, 50, 'red'); sfx.slam(); S.shake = 14; floatText(e.x, e.y - 60, '-' + loss, '#ff4a40', 24); }
