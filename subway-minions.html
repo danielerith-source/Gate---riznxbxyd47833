@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Subway Minions</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: rgba(12, 18, 36, 0.86);
+    --text: #f3f1ea;
+    --muted: #9aa3b8;
+    --accent: #ffd23f;
+    --danger: #ff5d5d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #hud {
+    position: fixed; inset: 0 0 auto 0; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+  #hud .big { font-size: 28px; font-weight: 800; letter-spacing: 0.5px; }
+  #hud .small { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  #hud .right { text-align: right; }
+  #crew { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; max-width: 180px; }
+  #crew span { width: 14px; height: 14px; border-radius: 50%; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .bar { height: 5px; width: 90px; border-radius: 3px; background: rgba(255,255,255,0.15); margin-top: 6px; margin-left: auto; overflow: hidden; display: none; }
+  .bar div { height: 100%; width: 100%; }
+  #magnetBar div { background: var(--danger); }
+  #boardBar div { background: var(--accent); }
+
+  #buyBtn {
+    position: fixed; left: 16px; bottom: 16px; padding: 12px 18px; border-radius: 999px;
+    border: 2px solid var(--accent); background: var(--panel); color: var(--text);
+    font-size: 15px; font-weight: 800; cursor: pointer; display: none;
+  }
+  #buyBtn.ready { background: var(--accent); color: #2a2000; box-shadow: 0 0 18px rgba(255,210,63,0.6); }
+  #buyBtn:disabled { opacity: 0.45; }
+
+  #buttons { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; }
+  #buttons button {
+    width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
+    background: var(--panel); color: var(--text); font-size: 18px; cursor: pointer;
+  }
+
+  .overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(5, 8, 18, 0.55); padding: 16px;
+  }
+  .overlay.hidden { display: none; }
+  .card {
+    background: var(--panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px;
+    padding: 26px 22px; max-width: 420px; width: 100%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-height: 100%; overflow-y: auto;
+  }
+  .card h1 { font-size: 40px; font-weight: 900; line-height: 1; letter-spacing: 1px; }
+  .card h1 em { font-style: normal; color: var(--accent); }
+  .card h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 15px; line-height: 1.5; margin-top: 12px; }
+  .card .stats { display: flex; justify-content: center; gap: 28px; margin-top: 16px; }
+  .card .stats div { font-size: 13px; color: var(--muted); }
+  .card .stats b { display: block; font-size: 26px; color: var(--text); }
+  .card ul { list-style: none; text-align: left; margin: 14px auto 0; max-width: 320px; color: var(--muted); font-size: 14px; line-height: 1.75; }
+  .card ul b { color: var(--text); }
+  .card button.play {
+    margin-top: 20px; padding: 14px 36px; font-size: 18px; font-weight: 800; border: none;
+    border-radius: 999px; background: var(--accent); color: #2a2000; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255,210,63,0.35);
+  }
+  .card button.play:active { transform: translateY(1px); }
+  .new-best { color: var(--accent); font-weight: 800; margin-top: 10px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div>
+    <div class="big" id="score">0</div>
+    <div class="small">best <span id="bestHud">0</span> · x<span id="mult">1.0</span></div>
+    <div id="crew"></div>
+  </div>
+  <div class="right">
+    <div class="big">🍌 <span id="bananas">0</span></div>
+    <div class="small">bananas</div>
+    <div class="bar" id="boardBar"><div></div></div>
+    <div class="bar" id="magnetBar"><div></div></div>
+  </div>
+</div>
+
+<button id="buyBtn">🍌 Buy board (4)</button>
+
+<div id="buttons">
+  <button id="muteBtn" aria-label="Toggle sound">🔊</button>
+  <button id="pauseBtn" aria-label="Pause">⏸</button>
+</div>
+
+<div class="overlay" id="menu">
+  <div class="card">
+    <h1>SUBWAY<br><em>MINIONS</em></h1>
+    <p>Lead your crew of minions through the subway. Grab bananas, climb onto the trains and hop from roof to roof. Every crash costs you a crew member. Crash with nobody left and the run is over.</p>
+    <ul>
+      <li><b>Swipe left / right</b> (or ← →): change track</li>
+      <li><b>Swipe up</b> (or ↑ / Space): jump hurdles and onto trains</li>
+      <li><b>Swipe down</b> (or ↓): roll under bars</li>
+      <li><b>Dodge</b> the posts and the fronts of trains</li>
+      <li><b>4 🍌 = 1 banana board</b> (button or B): you float, jump higher, and it takes one crash for you</li>
+      <li><b>Rescue</b> stray minions to grow your crew and score multiplier</li>
+    </ul>
+    <button class="play" id="startBtn">Play</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseMenu">
+  <div class="card">
+    <h2>Paused</h2>
+    <button class="play" id="resumeBtn">Resume</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="overMenu">
+  <div class="card">
+    <h2>Crew lost!</h2>
+    <div class="stats">
+      <div><b id="finalScore">0</b>score</div>
+      <div><b id="finalBananas">0</b>bananas</div>
+      <div><b id="finalBest">0</b>best</div>
+    </div>
+    <div class="new-best" id="newBest" hidden>New best run!</div>
+    <button class="play" id="againBtn">Run again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Setup ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1, F = 1, HORIZON = 0;
+
+  const LANE_W = 2.2;
+  const CAM_Y = 3.2, CAM_Z = -7;
+  const NEAR = CAM_Z + 0.6;
+  const FAR = 125;
+  const WALL_X = 4.3, CEIL_Y = 5.6;
+  const TRAIN_H = 2.0, RAMP_LEN = 4;
+  const STEP = 0.45;           // how far below a roof you can be and still land on it
+  const BOARD_TIME = 20, BOARD_COST = 4, BOARD_LIFT = 0.25;
+  let camLift = 0;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    F = Math.min(0.96 * H, 1.0 * W);
+    HORIZON = H * 0.84 - CAM_Y * F / (0 - CAM_Z);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function proj(x, y, z) {
+    const s = F / (z - CAM_Z);
+    return { x: W / 2 + x * s, y: HORIZON + (CAM_Y + camLift - y) * s, s };
+  }
+
+  // ---------- Colour helpers ----------
+  const FOG = [10, 14, 30];
+  function hex(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  function fogT(z) { return Math.max(0, Math.min(1, (z - 15) / (FAR - 15))); }
+  function col(c, t, light = 1) {
+    const r = Math.round((c[0] * light) * (1 - t) + FOG[0] * t);
+    const g = Math.round((c[1] * light) * (1 - t) + FOG[1] * t);
+    const b = Math.round((c[2] * light) * (1 - t) + FOG[2] * t);
+    return `rgb(${Math.min(255, r)},${Math.min(255, g)},${Math.min(255, b)})`;
+  }
+  const C = {
+    floorA: hex('#2a2f45'), floorB: hex('#262b40'),
+    wallA: hex('#3b4462'), wallB: hex('#353d59'),
+    ceilA: hex('#1c2236'), ceilB: hex('#192032'),
+    sleeper: hex('#4a3b2f'), rail: hex('#aab3c5'), lamp: hex('#ffcf7a'),
+    train: hex('#3f7fbf'), trainSide: hex('#2e5f91'), trainTop: hex('#6a9fd4'),
+    glass: hex('#b9e3ff'), stripe: hex('#ffb547'),
+    ramp: hex('#7a8296'), rampTop: hex('#9aa2b6'),
+    hurdleRed: hex('#e94b4b'), hurdleWhite: hex('#f2f2f2'),
+    bar: hex('#f2c230'), barDark: hex('#1d1d1d'), post: hex('#8892a6'),
+    pillar: hex('#5d6680'), pillarTop: hex('#727b95'), hazard: hex('#ffcc33'),
+  };
+  const CREW_COLOURS = ['#4fd1c5', '#ff8a65', '#b39ddb', '#9ccc65', '#4fc3f7', '#f48fb1', '#a1887f', '#81c784'];
+
+  function poly(pts, fill) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  // ---------- Audio ----------
+  let audioCtx = null, muted = false;
+  try { muted = localStorage.getItem('sm_muted') === '1'; } catch (e) {}
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0) {
+    if (muted) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      const t = audioCtx.currentTime;
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    banana: () => beep(1180, 0.07, 'square', 0.03),
+    jump: () => beep(420, 0.15, 'triangle', 0.06, 300),
+    roll: () => beep(260, 0.15, 'sawtooth', 0.03, -120),
+    lane: () => beep(600, 0.04, 'triangle', 0.03),
+    land: () => beep(180, 0.06, 'triangle', 0.04),
+    rescue: () => { beep(660, 0.1, 'triangle', 0.06); setTimeout(() => beep(990, 0.14, 'triangle', 0.06), 90); },
+    hit: () => beep(160, 0.35, 'sawtooth', 0.08, -100),
+    board: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.06), i * 70)); },
+    boardBreak: () => beep(300, 0.4, 'sawtooth', 0.07, -220),
+    magnet: () => { beep(500, 0.1, 'sine', 0.06, 400); setTimeout(() => beep(900, 0.15, 'sine', 0.05, 300), 100); },
+    over: () => { beep(330, 0.25, 'triangle', 0.07, -80); setTimeout(() => beep(220, 0.45, 'triangle', 0.07, -80), 220); },
+  };
+
+  // ---------- State ----------
+  let best = 0;
+  try { best = parseInt(localStorage.getItem('sm_best') || '0', 10) || 0; } catch (e) {}
+
+  let state = 'menu';
+  let G = null;
+
+  function newGame() {
+    G = {
+      t: 0, dist: 0, speed: 14, score: 0,
+      bananas: 0, totalBananas: 0,
+      lane: 1, px: 0, py: 0, vy: 0, rollT: 0, grounded: true,
+      crew: [CREW_COLOURS[0], CREW_COLOURS[1]],
+      invuln: 0, magnet: 0, board: 0, shake: 0, flash: 0,
+      objects: [], particles: [], nextRow: 30,
+      busy: [0, 0, 0],          // z up to which each lane is occupied by a train
+      history: [],              // past player positions for the crew to follow
+    };
+  }
+  newGame();
+
+  const laneX = (l) => (l - 1) * LANE_W;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // ---------- Spawning ----------
+  function rowSpacing() { return Math.max(10.5, Math.min(18, 22 - G.speed * 0.36)); }
+
+  function bananaLine(lane, z, n, y = 0.8, gap = 1.6) {
+    for (let k = 0; k < n; k++) G.objects.push({ kind: 'banana', lane, x: laneX(lane), y, z: z + k * gap, len: 0.4 });
+  }
+  function bananaArc(lane, z) {
+    for (let k = -2; k <= 2; k++) {
+      const y = 0.8 + 1.5 * (1 - (k * k) / 5);
+      G.objects.push({ kind: 'banana', lane, x: laneX(lane), y, z: z + k * 1.4, len: 0.4 });
+    }
+  }
+
+  function spawnRow(z) {
+    const d = Math.min(1, G.dist / 4000);
+    const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
+    const busy = lanes.filter((l) => G.busy[l] > z - 1);
+    const open = lanes.filter((l) => G.busy[l] <= z - 1);
+    // never block all three tracks at once
+    const want = Math.random() < 0.55 - 0.3 * d ? 1 : 2;
+    const nBlock = Math.max(0, Math.min(open.length - (busy.length ? 0 : 1), want - busy.length));
+    const blocked = open.slice(0, nBlock);
+    const free = open.slice(nBlock);
+
+    for (const l of blocked) {
+      const r = Math.random();
+      if (r < 0.4) {
+        const long = Math.random() < 0.5;
+        const len = long ? rnd(14, 22) : 7;
+        const ramp = Math.random() < (long ? 0.6 : 0.3);
+        const tz = ramp ? z + RAMP_LEN : z;
+        if (ramp) G.objects.push({ kind: 'ramp', lane: l, z, len: RAMP_LEN });
+        G.objects.push({ kind: 'train', lane: l, z: tz, len });
+        G.busy[l] = tz + len + 3;
+        // bananas on the roof
+        bananaLine(l, tz + 1.5, Math.floor((len - 2) / 1.8), TRAIN_H + 0.8, 1.8);
+      } else if (r < 0.62) {
+        G.objects.push({ kind: 'hurdle', lane: l, z, len: 0.35 });
+        if (Math.random() < 0.6) bananaArc(l, z);
+      } else if (r < 0.82) {
+        G.objects.push({ kind: 'bar', lane: l, z, len: 0.5 });
+        if (Math.random() < 0.5) bananaLine(l, z - 1.6, 3, 0.45);
+      } else {
+        G.objects.push({ kind: 'post', lane: l, z, len: 0.8 });
+      }
+    }
+
+    // rewards on the free tracks: bananas everywhere
+    let special = false;
+    for (const l of free) {
+      const r = Math.random();
+      if (!special && r < 0.08 && G.crew.length < 12) {
+        special = true;
+        G.objects.push({ kind: 'stray', lane: l, z: z + 3, len: 0.6, colour: CREW_COLOURS[Math.floor(Math.random() * CREW_COLOURS.length)] });
+        bananaLine(l, z + 5, 3);
+      } else if (!special && r < 0.11 && G.magnet <= 0) {
+        special = true;
+        G.objects.push({ kind: 'magnet', lane: l, z: z + 3, len: 0.6 });
+      } else if (r < 0.85) {
+        bananaLine(l, z, 6);
+      }
+    }
+  }
+
+  // ---------- Input ----------
+  function act(a) {
+    if (state !== 'play') return;
+    if (a === 'left' && G.lane > 0) { G.lane--; sfx.lane(); }
+    else if (a === 'right' && G.lane < 2) { G.lane++; sfx.lane(); }
+    else if (a === 'up' && G.grounded) {
+      G.vy = G.board > 0 ? 13.5 : 10.5; G.rollT = 0; G.grounded = false; sfx.jump();
+    } else if (a === 'down') {
+      if (!G.grounded) G.vy = -18;
+      G.rollT = 0.65; sfx.roll();
+    }
+  }
+  function buyBoard() {
+    if (state !== 'play' || G.board > 0 || G.bananas < BOARD_COST) return;
+    G.bananas -= BOARD_COST;
+    G.board = BOARD_TIME;
+    sfx.board();
+    burst(G.px, G.py + 0.3, 0, '#ffd23f', 16);
+  }
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(k)) e.preventDefault();
+    if (state === 'menu' || state === 'over') {
+      if (k === 'Enter' || k === ' ') startGame();
+      return;
+    }
+    if (k === 'p' || k === 'P' || k === 'Escape') { togglePause(); return; }
+    if (k === 'ArrowLeft' || k === 'a' || k === 'A') act('left');
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') act('right');
+    else if (k === 'ArrowUp' || k === 'w' || k === 'W' || k === ' ') act('up');
+    else if (k === 'ArrowDown' || k === 's' || k === 'S') act('down');
+    else if (k === 'b' || k === 'B') buyBoard();
+  });
+  let touchStart = null;
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchStart = { x: t.clientX, y: t.clientY, done: false };
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (!touchStart || touchStart.done) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 28) {
+      touchStart.done = true;
+      if (Math.abs(dx) > Math.abs(dy)) act(dx > 0 ? 'right' : 'left');
+      else act(dy > 0 ? 'down' : 'up');
+    }
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    if (touchStart && !touchStart.done) act('up'); // a tap also jumps
+    touchStart = null;
+    e.preventDefault();
+  }, { passive: false });
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    menu: $('menu'), pause: $('pauseMenu'), over: $('overMenu'),
+    score: $('score'), bananas: $('bananas'), bestHud: $('bestHud'), mult: $('mult'), crew: $('crew'),
+    magnetBar: $('magnetBar'), boardBar: $('boardBar'), buy: $('buyBtn'),
+  };
+  $('startBtn').onclick = startGame;
+  $('againBtn').onclick = startGame;
+  $('resumeBtn').onclick = togglePause;
+  $('pauseBtn').onclick = togglePause;
+  ui.buy.onclick = buyBoard;
+  ui.buy.addEventListener('touchend', (e) => { e.preventDefault(); buyBoard(); }, { passive: false });
+  const muteBtn = $('muteBtn');
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.onclick = () => {
+    muted = !muted; muteBtn.textContent = muted ? '🔇' : '🔊';
+    try { localStorage.setItem('sm_muted', muted ? '1' : '0'); } catch (e) {}
+  };
+  ui.bestHud.textContent = best;
+
+  function startGame() {
+    newGame();
+    state = 'play';
+    ui.menu.classList.add('hidden'); ui.over.classList.add('hidden'); ui.pause.classList.add('hidden');
+    ui.buy.style.display = 'block';
+    renderCrewHud();
+    last = performance.now();
+  }
+  function togglePause() {
+    if (state === 'play') { state = 'pause'; ui.pause.classList.remove('hidden'); }
+    else if (state === 'pause') { state = 'play'; ui.pause.classList.add('hidden'); last = performance.now(); }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
+
+  function gameOver() {
+    state = 'over';
+    sfx.over();
+    ui.buy.style.display = 'none';
+    const s = Math.floor(G.score);
+    const isBest = s > best;
+    if (isBest) { best = s; try { localStorage.setItem('sm_best', String(best)); } catch (e) {} }
+    $('finalScore').textContent = s;
+    $('finalBananas').textContent = G.totalBananas;
+    $('finalBest').textContent = best;
+    $('newBest').hidden = !isBest;
+    ui.bestHud.textContent = best;
+    setTimeout(() => ui.over.classList.remove('hidden'), 700);
+  }
+  function renderCrewHud() {
+    ui.crew.innerHTML = G.crew.map((c) => `<span style="background:${c}"></span>`).join('');
+  }
+
+  // ---------- Update ----------
+  const multiplier = () => 1 + G.crew.length * 0.25;
+
+  function burst(x, y, z, colour, n = 14) {
+    for (let i = 0; i < n; i++) {
+      G.particles.push({
+        x, y, z, vx: (Math.random() - 0.5) * 6, vy: Math.random() * 6 + 2, vz: (Math.random() - 0.5) * 4 - 3,
+        life: 0.8 + Math.random() * 0.4, colour,
+      });
+    }
+  }
+
+  function hit() {
+    if (G.invuln > 0) return;
+    sfx.hit();
+    G.shake = 0.35; G.flash = 0.3;
+    if (G.board > 0) {           // the board takes the crash for you
+      G.board = 0; sfx.boardBreak();
+      burst(G.px, G.py + 0.2, 0, '#ffd23f', 20);
+      G.invuln = 1.6;
+      return;
+    }
+    if (G.crew.length === 0) {
+      burst(G.px, G.py + 0.8, 0, '#ff5d5d', 24);
+      gameOver();
+      return;
+    }
+    const lost = G.crew.pop();
+    burst(G.px, G.py + 0.6, -1, lost, 18);
+    renderCrewHud();
+    G.invuln = 1.6;
+  }
+
+  // Height of the surface under the player: track (0), a ramp, or a train roof.
+  function supportHeight() {
+    let s = 0;
+    for (const o of G.objects) {
+      if (o.kind !== 'train' && o.kind !== 'ramp') continue;
+      if (Math.abs(G.px - laneX(o.lane)) > 1.1) continue;
+      if (!(o.z <= 0 && o.z + o.len > 0)) continue;
+      if (o.kind === 'ramp') {
+        const h = TRAIN_H * Math.min(1, (0 - o.z) / o.len);
+        if (G.py >= h - 1.0) s = Math.max(s, h);
+      } else if (G.py >= TRAIN_H - STEP) {
+        s = Math.max(s, TRAIN_H);
+      }
+    }
+    return s;
+  }
+
+  function update(dt) {
+    G.t += dt;
+    G.speed = Math.min(32, 14 + G.t * 0.22);
+    const dz = G.speed * dt;
+    G.dist += dz;
+    G.score += dz * multiplier() * 0.5;
+
+    // move world
+    for (const o of G.objects) o.z -= dz;
+    G.nextRow -= dz;
+    for (let l = 0; l < 3; l++) G.busy[l] -= dz;
+    while (G.nextRow < FAR) { spawnRow(G.nextRow); G.nextRow += rowSpacing(); }
+
+    // player
+    const tx = laneX(G.lane);
+    G.px += (tx - G.px) * Math.min(1, dt * 16);
+    const wasGrounded = G.grounded;
+    G.vy -= 28 * dt;
+    G.py += G.vy * dt;
+    const sup = supportHeight();
+    if (G.py <= sup) {
+      if (!wasGrounded && G.vy < -4) sfx.land();
+      G.py = sup; G.vy = Math.max(0, G.vy); G.grounded = true;
+    } else if (G.py > sup + 0.05) {
+      G.grounded = false;
+    }
+    if (G.rollT > 0) G.rollT -= dt;
+    if (G.invuln > 0) G.invuln -= dt;
+    if (G.magnet > 0) G.magnet -= dt;
+    if (G.board > 0) G.board -= dt;
+    if (G.shake > 0) G.shake -= dt;
+    if (G.flash > 0) G.flash -= dt;
+    camLift += (G.py * 0.55 - camLift) * Math.min(1, dt * 5);
+
+    G.history.unshift({ x: G.px, y: G.py });
+    if (G.history.length > 120) G.history.length = 120;
+
+    const rolling = G.rollT > 0 && G.grounded;
+    const lift = G.board > 0 ? BOARD_LIFT : 0;
+    const pBottom = G.py + lift, pTop = pBottom + (rolling ? 0.7 : 1.5);
+
+    for (const o of G.objects) {
+      if (o.dead) continue;
+      const ox = o.x !== undefined ? o.x : laneX(o.lane);
+
+      if (o.kind === 'banana' && G.magnet > 0 && o.z < 14 && o.z > -1) {
+        o.x = ox + (G.px - ox) * Math.min(1, dt * 10);
+        o.y += (G.py + 0.8 - o.y) * Math.min(1, dt * 10);
+        o.z -= Math.min(o.z, 18 * dt);
+      }
+      if (!(o.z < 0.45 && o.z + o.len > -0.45)) continue;
+      const reach = o.kind === 'banana' ? 0.9 : o.kind === 'post' ? 0.85 : 1.1;
+      if (Math.abs(G.px - ox) >= reach) continue;
+
+      switch (o.kind) {
+        case 'train': if (pBottom < TRAIN_H - STEP) hit(); break;
+        case 'hurdle': if (pBottom < 0.95) { hit(); o.dead = true; } break;
+        case 'bar': if (pTop > 1.3 && pBottom < 2.1) { hit(); o.dead = true; } break;
+        case 'post': hit(); o.dead = true; break;
+        case 'banana':
+          if (pTop > o.y - 0.45 && pBottom < o.y + 0.45) {
+            o.dead = true; G.bananas++; G.totalBananas++; G.score += 10 * multiplier(); sfx.banana();
+          }
+          break;
+        case 'stray':
+          if (pBottom < 1.0) {
+            o.dead = true; G.crew.push(o.colour); renderCrewHud(); sfx.rescue();
+            burst(ox, 0.8, 0.5, o.colour, 10);
+          }
+          break;
+        case 'magnet':
+          o.dead = true; G.magnet = 8; sfx.magnet();
+          break;
+      }
+      if (state !== 'play') return;
+    }
+    G.objects = G.objects.filter((o) => o.z + o.len > CAM_Z + 0.5 && !(o.dead && (o.kind === 'banana' || o.kind === 'stray' || o.kind === 'magnet')));
+
+    for (const p of G.particles) {
+      p.vy -= 14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt;
+      if (p.y < 0) { p.y = 0; p.vy *= -0.4; }
+    }
+    G.particles = G.particles.filter((p) => p.life > 0);
+  }
+
+  function updateHud() {
+    ui.score.textContent = Math.floor(G.score);
+    ui.bananas.textContent = G.bananas;
+    ui.mult.textContent = multiplier().toFixed(2).replace(/0$/, '');
+    for (const [bar, v, max] of [[ui.magnetBar, G.magnet, 8], [ui.boardBar, G.board, BOARD_TIME]]) {
+      if (v > 0) { bar.style.display = 'block'; bar.firstElementChild.style.width = (v / max * 100) + '%'; }
+      else bar.style.display = 'none';
+    }
+    const canBuy = G.board <= 0 && G.bananas >= BOARD_COST;
+    ui.buy.disabled = !canBuy;
+    ui.buy.classList.toggle('ready', canBuy);
+    ui.buy.textContent = G.board > 0 ? '🍌 Board active' : `🍌 Buy board (${BOARD_COST})`;
+  }
+
+  // ---------- Rendering ----------
+  function drawTunnel() {
+    const L = 4;
+    const k0 = Math.floor((NEAR + G.dist) / L);
+    const k1 = Math.ceil((FAR + G.dist) / L);
+    for (let k = k1; k >= k0; k--) {
+      let z0 = k * L - G.dist, z1 = z0 + L;
+      if (z1 < NEAR) continue;
+      z0 = Math.max(z0, NEAR); z1 = Math.min(z1, FAR);
+      if (z0 >= z1) continue;
+      const t = fogT((z0 + z1) / 2);
+      const even = (k & 1) === 0;
+      const a = proj(-WALL_X, 0, z0), b = proj(WALL_X, 0, z0), c = proj(WALL_X, 0, z1), d = proj(-WALL_X, 0, z1);
+      const a2 = proj(-WALL_X, CEIL_Y, z0), b2 = proj(WALL_X, CEIL_Y, z0), c2 = proj(WALL_X, CEIL_Y, z1), d2 = proj(-WALL_X, CEIL_Y, z1);
+      poly([a, b, c, d], col(even ? C.floorA : C.floorB, t));
+      poly([a, d, d2, a2], col(even ? C.wallA : C.wallB, t, 0.9));
+      poly([b, c, c2, b2], col(even ? C.wallA : C.wallB, t, 0.9));
+      poly([a2, b2, c2, d2], col(even ? C.ceilA : C.ceilB, t));
+    }
+
+    // sleepers
+    const S = 1.3;
+    const s0 = Math.floor((NEAR + G.dist) / S), s1 = Math.ceil((70 + G.dist) / S);
+    for (let k = s1; k >= s0; k--) {
+      const z = k * S - G.dist;
+      if (z < NEAR || z + 0.35 > 70) continue;
+      const t = fogT(z);
+      for (let l = 0; l < 3; l++) {
+        const x = laneX(l);
+        poly([proj(x - 0.85, 0.01, z), proj(x + 0.85, 0.01, z), proj(x + 0.85, 0.01, z + 0.35), proj(x - 0.85, 0.01, z + 0.35)], col(C.sleeper, t));
+      }
+    }
+    // rails
+    ctx.lineCap = 'round';
+    for (let l = 0; l < 3; l++) {
+      for (const side of [-0.55, 0.55]) {
+        const x = laneX(l) + side;
+        const n = proj(x, 0.03, NEAR), f1 = proj(x, 0.03, 40), f2 = proj(x, 0.03, FAR);
+        ctx.strokeStyle = col(C.rail, 0.1);
+        ctx.lineWidth = Math.max(1, 0.08 * n.s);
+        ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(f1.x, f1.y); ctx.stroke();
+        ctx.strokeStyle = col(C.rail, 0.6); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(f1.x, f1.y); ctx.lineTo(f2.x, f2.y); ctx.stroke();
+      }
+    }
+    // wall lamps
+    const LL = 12;
+    const l0 = Math.floor((NEAR + G.dist) / LL), l1 = Math.ceil((FAR + G.dist) / LL);
+    for (let k = l1; k >= l0; k--) {
+      const z = k * LL - G.dist;
+      if (z < NEAR + 0.5 || z > FAR) continue;
+      const t = fogT(z);
+      for (const sx of [-1, 1]) {
+        const x = sx * (WALL_X - 0.01);
+        const p0 = proj(x, 3.9, z), p1 = proj(x, 4.3, z + 1.6);
+        const cy = (p0.y + p1.y) / 2;
+        const g = ctx.createRadialGradient(p0.x, cy, 0, p0.x, cy, 1.6 * p0.s);
+        g.addColorStop(0, `rgba(255,200,120,${0.35 * (1 - t)})`);
+        g.addColorStop(1, 'rgba(255,200,120,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(p0.x - 1.6 * p0.s, cy - 1.6 * p0.s, 3.2 * p0.s, 3.2 * p0.s);
+        poly([proj(x, 3.9, z), proj(x, 3.9, z + 1.6), proj(x, 4.3, z + 1.6), proj(x, 4.3, z)], col(C.lamp, t));
+      }
+    }
+  }
+
+  function drawBox(x0, x1, y0, y1, z0, z1, front, side, top) {
+    if (z1 < NEAR) return 0;
+    z0 = Math.max(z0, NEAR);
+    const t = fogT(z0);
+    const camY = CAM_Y + camLift;
+    if (y1 < camY) poly([proj(x0, y1, z0), proj(x1, y1, z0), proj(x1, y1, z1), proj(x0, y1, z1)], col(top, t));
+    if (x1 < 0) poly([proj(x1, y0, z0), proj(x1, y0, z1), proj(x1, y1, z1), proj(x1, y1, z0)], col(side, t));
+    if (x0 > 0) poly([proj(x0, y0, z0), proj(x0, y0, z1), proj(x0, y1, z1), proj(x0, y1, z0)], col(side, t));
+    poly([proj(x0, y0, z0), proj(x1, y0, z0), proj(x1, y1, z0), proj(x0, y1, z0)], col(front, t));
+    return t;
+  }
+
+  function drawTrain(o) {
+    const x = laneX(o.lane), x0 = x - 1.0, x1 = x + 1.0;
+    const z0 = o.z, z1 = o.z + o.len;
+    if (z1 < NEAR) return;
+    const t = drawBox(x0, x1, 0.15, TRAIN_H, z0, z1, C.train, C.trainSide, C.trainTop);
+    // roof walkway line
+    const zr = Math.max(z0, NEAR);
+    poly([proj(x - 0.08, TRAIN_H + 0.001, zr), proj(x + 0.08, TRAIN_H + 0.001, zr), proj(x + 0.08, TRAIN_H + 0.001, z1), proj(x - 0.08, TRAIN_H + 0.001, z1)], col(C.stripe, t, 0.8));
+    // side windows and stripe
+    const sx = x1 < 0 ? x1 : (x0 > 0 ? x0 : null);
+    if (sx !== null) {
+      const zs = Math.max(z0 + 0.4, NEAR);
+      if (zs < z1 - 0.4) {
+        poly([proj(sx, 1.15, zs), proj(sx, 1.15, z1 - 0.4), proj(sx, 1.75, z1 - 0.4), proj(sx, 1.75, zs)], col(C.glass, t, 0.75));
+        poly([proj(sx, 0.7, zs), proj(sx, 0.7, z1 - 0.2), proj(sx, 0.85, z1 - 0.2), proj(sx, 0.85, zs)], col(C.stripe, t));
+      }
+    }
+    if (z0 >= NEAR) {
+      poly([proj(x0 + 0.2, 1.15, z0), proj(x1 - 0.2, 1.15, z0), proj(x1 - 0.2, 1.8, z0), proj(x0 + 0.2, 1.8, z0)], col(C.glass, t, 0.85));
+      poly([proj(x0, 0.7, z0), proj(x1, 0.7, z0), proj(x1, 0.85, z0), proj(x0, 0.85, z0)], col(C.stripe, t));
+      for (const lx of [x0 + 0.35, x1 - 0.35]) {
+        const p = proj(lx, 0.45, z0);
+        ctx.fillStyle = `rgba(255,250,220,${1 - t})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 0.14 * p.s, 0, Math.PI * 2); ctx.fill();
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 0.8 * p.s);
+        g.addColorStop(0, `rgba(255,240,200,${0.4 * (1 - t)})`); g.addColorStop(1, 'rgba(255,240,200,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 0.8 * p.s, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function drawRamp(o) {
+    const x = laneX(o.lane), x0 = x - 1.0, x1 = x + 1.0;
+    let z0 = o.z, z1 = o.z + o.len;
+    if (z1 < NEAR) return;
+    const hAt = (z) => TRAIN_H * Math.max(0, Math.min(1, (z - o.z) / o.len));
+    z0 = Math.max(z0, NEAR);
+    const t = fogT(z0);
+    const h0 = hAt(z0), h1 = TRAIN_H;
+    if (x1 < 0) poly([proj(x1, 0, z0), proj(x1, 0, z1), proj(x1, h1, z1), proj(x1, h0, z0)], col(C.ramp, t, 0.8));
+    if (x0 > 0) poly([proj(x0, 0, z0), proj(x0, 0, z1), proj(x0, h1, z1), proj(x0, h0, z0)], col(C.ramp, t, 0.8));
+    poly([proj(x0, h0, z0), proj(x1, h0, z0), proj(x1, h1, z1), proj(x0, h1, z1)], col(C.rampTop, t));
+    // grip lines
+    for (let k = 1; k < 6; k++) {
+      const z = o.z + (k / 6) * o.len;
+      if (z < NEAR) continue;
+      const a = proj(x0 + 0.1, hAt(z) + 0.01, z), b = proj(x1 - 0.1, hAt(z) + 0.01, z);
+      ctx.strokeStyle = col(C.hazard, fogT(z), 0.8); ctx.lineWidth = Math.max(1, 0.05 * a.s);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+  }
+
+  function stripes(x0, x1, y0, y1, z, n, colour, t) {
+    const w = (x1 - x0) / n;
+    for (let i = 0; i < n; i += 2) {
+      const a = x0 + i * w;
+      poly([proj(a, y0, z), proj(Math.min(x1, a + w), y0, z), proj(Math.min(x1, a + w * 1.4), y1, z), proj(Math.min(x1, a + w * 0.4), y1, z)], col(colour, t));
+    }
+  }
+
+  function drawHurdle(o) {   // jump over
+    const x = laneX(o.lane);
+    if (o.z < NEAR) return;
+    const t = fogT(o.z);
+    drawBox(x - 0.95, x - 0.8, 0, 0.95, o.z, o.z + o.len, C.post, C.post, C.post);
+    drawBox(x + 0.8, x + 0.95, 0, 0.95, o.z, o.z + o.len, C.post, C.post, C.post);
+    drawBox(x - 1.0, x + 1.0, 0.5, 0.95, o.z, o.z + o.len * 0.6, C.hurdleWhite, C.hurdleWhite, C.hurdleWhite);
+    stripes(x - 1.0, x + 1.0, 0.5, 0.95, o.z, 5, C.hurdleRed, t);
+  }
+
+  function drawBar(o) {      // roll under
+    const x = laneX(o.lane);
+    if (o.z < NEAR) return;
+    const t = fogT(o.z);
+    drawBox(x - 1.05, x - 0.9, 0, 2.1, o.z, o.z + o.len, C.post, C.post, C.post);
+    drawBox(x + 0.9, x + 1.05, 0, 2.1, o.z, o.z + o.len, C.post, C.post, C.post);
+    drawBox(x - 1.05, x + 1.05, 1.35, 2.1, o.z, o.z + o.len, C.bar, C.bar, C.bar);
+    stripes(x - 1.05, x + 1.05, 1.35, 2.1, o.z, 7, C.barDark, t);
+  }
+
+  function drawPost(o) {     // dodge
+    const x = laneX(o.lane);
+    if (o.z + o.len < NEAR) return;
+    const t = drawBox(x - 0.45, x + 0.45, 0, CEIL_Y, o.z, o.z + o.len, C.pillar, C.pillar, C.pillarTop);
+    if (o.z >= NEAR) {
+      for (let k = 0; k < 4; k++) {
+        const y0 = 0.3 + k * 0.35;
+        poly([proj(x - 0.45, y0, o.z), proj(x + 0.45, y0, o.z), proj(x + 0.45, y0 + 0.17, o.z), proj(x - 0.45, y0 + 0.17, o.z)], col(C.hazard, t));
+      }
+    }
+  }
+
+  // Banana shape, centred on (0,0), radius r
+  function bananaPath(r) {
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.2, r, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.arc(0, -r * 0.55, r * 0.9, Math.PI * 0.8, Math.PI * 0.2, true);
+    ctx.closePath();
+  }
+  function drawBanana(o) {
+    if (o.z < NEAR || o.z > FAR) return;
+    const x = o.x !== undefined ? o.x : laneX(o.lane);
+    const p = proj(x, o.y, o.z);
+    const t = fogT(o.z);
+    const r = 0.45 * p.s;
+    const w = Math.max(0.25, Math.abs(Math.cos(G.t * 3 + o.z * 0.3)));
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(-0.35);
+    ctx.scale(w, 1);
+    bananaPath(r);
+    ctx.fillStyle = col([255, 214, 51], t);
+    ctx.fill();
+    ctx.strokeStyle = col([190, 140, 20], t);
+    ctx.lineWidth = Math.max(1, r * 0.08);
+    ctx.stroke();
+    // stem and tip
+    ctx.fillStyle = col([90, 60, 20], t);
+    ctx.beginPath(); ctx.arc(Math.cos(Math.PI * 0.15) * r * 0.97, -r * 0.2 + Math.sin(Math.PI * 0.15) * r * 0.9, r * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(Math.cos(Math.PI * 0.85) * r * 0.97, -r * 0.2 + Math.sin(Math.PI * 0.85) * r * 0.9, r * 0.07, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // The banana board, seen from behind, floating under the player
+  function drawBoard(x, y) {
+    const p = proj(x, y + 0.08, 0);
+    const len = 1.5 * p.s, th = 0.22 * p.s;
+    const g = ctx.createRadialGradient(p.x, p.y + th, 0, p.x, p.y + th, len * 0.7);
+    g.addColorStop(0, 'rgba(255,220,80,0.45)'); g.addColorStop(1, 'rgba(255,220,80,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + th, len * 0.7, len * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(p.x - len / 2, p.y - th * 0.9);
+    ctx.quadraticCurveTo(p.x, p.y + th * 1.9, p.x + len / 2, p.y - th * 0.9);
+    ctx.quadraticCurveTo(p.x, p.y + th * 0.4, p.x - len / 2, p.y - th * 0.9);
+    ctx.closePath();
+    ctx.fillStyle = '#ffd633'; ctx.fill();
+    ctx.strokeStyle = '#b8860b'; ctx.lineWidth = Math.max(1, th * 0.18); ctx.stroke();
+    ctx.fillStyle = '#5a3c14';
+    ctx.beginPath(); ctx.arc(p.x - len / 2, p.y - th * 0.9, th * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x + len / 2, p.y - th * 0.9, th * 0.22, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawMagnet(o) {
+    if (o.z < NEAR) return;
+    const p = proj(laneX(o.lane), 1.0 + Math.sin(G.t * 4) * 0.15, o.z);
+    const t = fogT(o.z), r = 0.45 * p.s;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.4);
+    g.addColorStop(0, `rgba(255,93,93,${0.45 * (1 - t)})`); g.addColorStop(1, 'rgba(255,93,93,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r * 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = r * 0.5; ctx.lineCap = 'butt';
+    ctx.strokeStyle = col([230, 60, 60], t);
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, Math.PI, 0, true); ctx.stroke();
+    ctx.strokeStyle = col([220, 225, 235], t);
+    ctx.beginPath();
+    ctx.moveTo(p.x - r, p.y); ctx.lineTo(p.x - r, p.y - r * 0.5);
+    ctx.moveTo(p.x + r, p.y); ctx.lineTo(p.x + r, p.y - r * 0.5);
+    ctx.stroke();
+    ctx.lineCap = 'round';
+  }
+
+  // Our minion: a round little creature with an antenna bulb.
+  function drawCreature(cx, footY, h, colour, phase, o = {}) {
+    if (o.roll) {           // curled up into a ball, spinning
+      const r = h * 0.3;
+      ctx.save();
+      ctx.translate(cx, footY - r);
+      ctx.rotate(phase * 1.5);
+      ctx.fillStyle = colour;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = shadeHex(colour, 0.6); ctx.lineWidth = r * 0.22;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, Math.PI * 1.2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.35, r * 0.25, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (o.cap) {
+        ctx.fillStyle = '#d83a3a';
+        ctx.beginPath(); ctx.ellipse(cx, footY - r * 2, r * 0.6, r * 0.3, 0, Math.PI, 0); ctx.fill();
+      }
+      return;
+    }
+    const back = o.back;
+    const rx = h * 0.42, ry = h * 0.38;
+    const cy = footY - h * 0.15 - ry;
+    // legs
+    ctx.fillStyle = '#20263a';
+    const swing = o.air ? 0 : Math.sin(phase) * h * 0.08;
+    roundRect(cx - rx * 0.45 - h * 0.06, footY - h * 0.2 + Math.max(0, swing), h * 0.13, h * 0.2 - Math.max(0, swing), h * 0.05);
+    roundRect(cx + rx * 0.45 - h * 0.07, footY - h * 0.2 + Math.max(0, -swing), h * 0.13, h * 0.2 - Math.max(0, -swing), h * 0.05);
+    // arms
+    ctx.strokeStyle = shadeHex(colour, 0.75); ctx.lineWidth = h * 0.07; ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (o.air) {
+      ctx.moveTo(cx - rx * 0.9, cy); ctx.lineTo(cx - rx * 1.3, cy - h * 0.25);
+      ctx.moveTo(cx + rx * 0.9, cy); ctx.lineTo(cx + rx * 1.3, cy - h * 0.25);
+    } else {
+      const a = o.wave ? Math.sin(phase * 2) * 0.6 - 1.2 : Math.sin(phase) * 0.5;
+      ctx.moveTo(cx - rx * 0.9, cy); ctx.lineTo(cx - rx * 1.25, cy + h * 0.15 * Math.cos(a) - (o.wave ? h * 0.25 : 0));
+      ctx.moveTo(cx + rx * 0.9, cy); ctx.lineTo(cx + rx * 1.25, cy + h * 0.15 * Math.cos(-a));
+    }
+    ctx.stroke();
+    // antenna
+    const topY = cy - ry;
+    const sway = Math.sin(phase * 0.5) * h * 0.05;
+    ctx.strokeStyle = '#20263a'; ctx.lineWidth = Math.max(1, h * 0.03);
+    ctx.beginPath(); ctx.moveTo(cx, topY + h * 0.02); ctx.quadraticCurveTo(cx + sway, topY - h * 0.12, cx + sway * 2, topY - h * 0.2); ctx.stroke();
+    const bx = cx + sway * 2, by = topY - h * 0.22;
+    const bulb = ctx.createRadialGradient(bx, by, 0, bx, by, h * 0.16);
+    bulb.addColorStop(0, 'rgba(255,230,140,0.9)'); bulb.addColorStop(1, 'rgba(255,230,140,0)');
+    ctx.fillStyle = bulb; ctx.beginPath(); ctx.arc(bx, by, h * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff1b8'; ctx.beginPath(); ctx.arc(bx, by, h * 0.05, 0, Math.PI * 2); ctx.fill();
+    // body
+    ctx.fillStyle = colour;
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.ellipse(cx - rx * 0.3, cy - ry * 0.35, rx * 0.35, ry * 0.25, -0.4, 0, Math.PI * 2); ctx.fill();
+    if (!back) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.ellipse(cx, cy + ry * 0.35, rx * 0.55, ry * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      for (const ex of [-1, 1]) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(cx + ex * rx * 0.33, cy - ry * 0.1, rx * 0.17, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1a1f30';
+        ctx.beginPath(); ctx.arc(cx + ex * rx * 0.33, cy - ry * 0.05, rx * 0.09, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = '#1a1f30'; ctx.lineWidth = Math.max(1, h * 0.03);
+      ctx.beginPath(); ctx.arc(cx, cy + ry * 0.2, rx * 0.18, 0.2, Math.PI - 0.2); ctx.stroke();
+    } else {
+      ctx.fillStyle = shadeHex(colour, 0.6);
+      roundRect(cx - rx * 0.35, cy - ry * 0.2, rx * 0.7, ry * 0.75, rx * 0.15);
+    }
+    if (o.cap) {
+      ctx.fillStyle = '#d83a3a';
+      ctx.beginPath(); ctx.ellipse(cx, topY + ry * 0.22, rx * 0.62, ry * 0.32, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#a82424';
+      ctx.fillRect(cx - rx * 0.7, topY + ry * 0.18, rx * 1.4, ry * 0.1);
+    }
+  }
+  function roundRect(x, y, w, h, r) {
+    if (w <= 0 || h <= 0) return;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2)); else ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+  function shadeHex(h, k) {
+    const c = hex(h);
+    return `rgb(${Math.round(c[0] * k)},${Math.round(c[1] * k)},${Math.round(c[2] * k)})`;
+  }
+  function shadow(x, y, z, w, alpha = 0.35) {
+    const p = proj(x, y + 0.02, z);
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, w * p.s, w * 0.3 * p.s, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawPlayer() {
+    if (state === 'over') return;
+    if (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0) return;
+    const rolling = G.rollT > 0 && G.grounded;
+    const sup = supportHeight();
+    shadow(G.px, sup, 0, 0.55 * (1 - Math.min(0.5, (G.py - sup) / 4)));
+    const lift = G.board > 0 ? BOARD_LIFT + Math.sin(G.t * 5) * 0.04 : 0;
+    if (G.board > 0) drawBoard(G.px, G.py + lift - 0.12);
+    const p = proj(G.px, G.py + lift, 0);
+    const phase = G.t * G.speed * 0.9;
+    const bob = (!G.grounded || G.board > 0) ? 0 : Math.abs(Math.sin(phase)) * 0.06 * p.s;
+    drawCreature(p.x, p.y - bob, 1.5 * p.s, '#ffb547', G.board > 0 ? 0 : phase,
+      { back: true, cap: true, roll: rolling, air: !G.grounded || G.board > 0 });
+  }
+
+  const crewZ = (i) => -0.5 - 0.45 * i;
+  function drawCrewMember(i) {
+    const h = G.history[Math.min(G.history.length - 1, (i + 1) * 7)] || { x: G.px, y: G.py };
+    const z = crewZ(i);
+    const x = h.x + (i % 2 === 0 ? -0.6 : 0.6);
+    const phase = G.t * G.speed * 0.9 + i * 1.3;
+    const hop = Math.abs(Math.sin(phase * 0.5 + i)) * 0.2;
+    shadow(x, h.y, z, 0.22);
+    const p = proj(x, h.y + hop, z);
+    drawCreature(p.x, p.y, 0.6 * p.s, G.crew[i], phase, { back: true });
+  }
+
+  function drawParticles() {
+    for (const q of G.particles) {
+      if (q.z < NEAR) continue;
+      const p = proj(q.x, q.y, q.z);
+      ctx.globalAlpha = Math.max(0, Math.min(1, q.life));
+      ctx.fillStyle = q.colour;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 0.09 * p.s, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawObject(o) {
+    switch (o.kind) {
+      case 'train': drawTrain(o); break;
+      case 'ramp': drawRamp(o); break;
+      case 'hurdle': drawHurdle(o); break;
+      case 'bar': drawBar(o); break;
+      case 'post': drawPost(o); break;
+      case 'banana': drawBanana(o); break;
+      case 'magnet': drawMagnet(o); break;
+      case 'stray': {
+        if (o.z < NEAR) return;
+        const x = laneX(o.lane);
+        shadow(x, 0, o.z, 0.32);
+        const p = proj(x, Math.abs(Math.sin(G.t * 6)) * 0.2, o.z);
+        drawCreature(p.x, p.y, 0.85 * p.s, o.colour, G.t * 6, { wave: true });
+        if (o.z < 60) {
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.font = `800 ${Math.max(10, 0.5 * p.s)}px system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('!', p.x, p.y - 1.25 * p.s);
+        }
+        break;
+      }
+    }
+  }
+
+  function render() {
+    ctx.save();
+    ctx.fillStyle = col(FOG, 0);
+    ctx.fillRect(0, 0, W, H);
+    if (G.shake > 0) ctx.translate((Math.random() - 0.5) * 14 * G.shake, (Math.random() - 0.5) * 14 * G.shake);
+
+    drawTunnel();
+
+    // depth-sorted draw list (far to near). Long objects sort by their nearest visible point.
+    const list = [];
+    for (const o of G.objects) {
+      if (o.dead && (o.kind === 'banana' || o.kind === 'stray' || o.kind === 'magnet')) continue;
+      if (o.z > FAR) continue;
+      let key = o.z;
+      if (o.kind === 'train' || o.kind === 'ramp') key = Math.max(o.z, Math.min(o.z + o.len, 0.02)) - 0.001;
+      if (o.kind === 'banana' && o.z < 0.02) key = o.z;
+      list.push({ z: key, fn: () => drawObject(o) });
+    }
+    list.push({ z: 0.01, fn: drawPlayer });
+    const visibleCrew = Math.min(G.crew.length, 4);
+    for (let i = 0; i < visibleCrew; i++) list.push({ z: crewZ(i), fn: () => drawCrewMember(i) });
+    list.sort((a, b) => b.z - a.z);
+    for (const d of list) d.fn();
+    drawParticles();
+
+    if (G.flash > 0) {
+      ctx.fillStyle = `rgba(255,60,60,${G.flash})`;
+      ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+    if (G.magnet > 0) {
+      ctx.fillStyle = `rgba(255,93,93,${0.05 + 0.03 * Math.sin(G.t * 8)})`;
+      ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+    ctx.restore();
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (state === 'play') { update(dt); updateHud(); }
+    else if (state === 'menu') { G.t += dt; G.dist += 6 * dt; }
+    else if (state === 'over') {
+      for (const p of G.particles) { p.vy -= 14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt; }
+      G.particles = G.particles.filter((p) => p.life > 0);
+      if (G.shake > 0) G.shake -= dt;
+      if (G.flash > 0) G.flash -= dt;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // test hook (harmless in normal play)
+  window.__sm = { get G() { return G; }, act, buyBoard, startGame, get state() { return state; } };
+})();
+</script>
+</body>
+</html>
