@@ -64,7 +64,16 @@
     border-radius: 12px; background: rgba(255,255,255,0.85); color: #1d2433; font-size: 18px;
   }
   #musicBtn { top: calc(108px + env(safe-area-inset-top, 0px)); }
-  #soundBtn, #musicBtn, #quitBtn { z-index: 5; }
+  #soundBtn, #musicBtn, #quitBtn, #jumpBtn { z-index: 5; }
+  #jumpBtn {
+    position: fixed; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    width: 92px; height: 92px; padding: 0; border-radius: 50%;
+    background: #ff7a1a; color: #fff; font-size: 17px; font-weight: 900; letter-spacing: 0.04em;
+    border: 4px solid #fff; box-shadow: 0 5px 0 #c8560a, 0 8px 18px rgba(0,0,0,0.25);
+    touch-action: manipulation;
+  }
+  #jumpBtn:active, #jumpBtn.pressed { transform: translateY(3px); box-shadow: 0 2px 0 #c8560a; }
+  #jumpBtn:disabled { opacity: 0.6; }
   #quitBtn {
     position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); width: 40px; height: 40px; padding: 0;
     border-radius: 12px; background: rgba(255,255,255,0.85); color: #1d2433; font-size: 18px;
@@ -78,6 +87,7 @@
 <button id="quitBtn" class="hidden" aria-label="Back to menu">✕</button>
 <button id="soundBtn" aria-label="Turn woofs and sounds off">🔊</button>
 <button id="musicBtn" aria-label="Turn music off">🎵</button>
+<button id="jumpBtn" class="hidden" aria-label="Jump">JUMP</button>
 
 <div id="menu" class="overlay">
   <div class="card">
@@ -96,8 +106,9 @@
       <li>Nothing can hurt the hot dog, but any puppy hit by an arrow, saw, laser or spikes is lost!</li>
       <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
       <li>Watch out for swinging hammers and rolling boulders too.</li>
+      <li>Tap <b>JUMP</b> (or press space) to hop over holes, spikes, lasers and arrows. The puppies jump too! Saws, hammers and boulders are too tall to jump, so dodge them.</li>
       <li>Win a level and the puppies will give you a lick!</li>
-      <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3…</li>
+      <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3… and on the big levels the top step needs 100!</li>
       <li>Reach the top to open the treasure chest!</li>
     </ul>
   </div>
@@ -181,8 +192,13 @@ function makeLevel(lv) {
   const r = rng(lv * 7919 + 13);
   const R = (a, b) => a + r() * (b - a);
   const randInt = (a, b) => a + Math.floor(r() * (b - a + 1));
-  const steps = Math.min(24, 6 + Math.floor(lv * 0.6));
-  const need = steps * (steps + 1) / 2;
+  // Ladder: step 1 needs a few puppies, and each step needs more, up to 100 on the top step.
+  // Early levels go up in 1s (1, 2, 3…); later levels in bigger jumps, reaching 100 from level 20.
+  const steps = lv >= 20 ? Math.max(20, Math.min(24, 6 + Math.floor(lv * 0.6))) : Math.min(24, 6 + Math.floor(lv * 0.6));
+  const inc = lv <= 5 ? 1 : lv <= 10 ? 2 : lv <= 15 ? 3 : lv <= 19 ? 4 : 5;
+  const needs = [];
+  for (let i = 1; i <= steps; i++) needs.push(Math.min(100, i * inc));
+  const need = needs.reduce((a, b) => a + b, 0);
   const useTimes = lv >= 11, hard = lv >= 21;
   const segs = Math.min(20, 8 + Math.floor(lv / 2));
   const objs = [];
@@ -307,7 +323,7 @@ function makeLevel(lv) {
   // Make sure the treasure is always reachable by picking the best squares:
   // add extra pairs of squares (still only −15 … +20) until there are enough.
   const target = need * (lv <= 3 ? 2.8 : lv <= 6 ? 2.2 : 1.8);
-  for (let extra = 0; best < target && extra < 12; extra++) {
+  for (let extra = 0; best < target && extra < 20; extra++) {
     const a = useTimes && best >= 8 && r() < 0.4 ? { op: '×', val: 2 } : { op: '+', val: randInt(14, MAX_PLUS) };
     const b = { op: '-', val: randInt(5, MAX_MINUS) };
     const left = r() < 0.5;
@@ -318,7 +334,7 @@ function makeLevel(lv) {
     if (r() < extraChance) anyObstacle(z + 11);
     z += 22;
   }
-  return { lv, steps, need, objs, end: z + 6 };
+  return { lv, steps, needs, need, objs, end: z + 6 };
 }
 
 // ───────────────────────── Game state ─────────────────────────
@@ -326,6 +342,23 @@ let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
 let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [];
+// Jumps happen at a spot on the road: the hot dog takes off there and each puppy
+// jumps when it reaches the same spot, so the whole pack hops over the same thing.
+let jumps = [];
+const JUMP_TIME = 0.75, JUMP_HEIGHT = 1.9;
+function airAt(z) {
+  let h = 0;
+  for (const j of jumps) if (z > j.z0 && z < j.z0 + j.len) h = Math.max(h, JUMP_HEIGHT * Math.sin(Math.PI * (z - j.z0) / j.len));
+  return h;
+}
+function doJump() {
+  if (state !== 'run') return;
+  const last = jumps[jumps.length - 1];
+  if (last && player.z < last.z0 + last.len) return;   // already in the air
+  jumps.push({ z0: player.z, len: player.speed * JUMP_TIME });
+  boing();
+  const b = document.getElementById('jumpBtn'); b.classList.add('pressed'); setTimeout(() => b.classList.remove('pressed'), 120);
+}
 // Puppy coats [body, ears]
 const COATS = [['#f2c38f', '#a8682f'], ['#ffffff', '#c9a27a'], ['#3a3a3a', '#1e1e1e'], ['#a0522d', '#5e2f14'], ['#e8d5b5', '#8a6a48'], ['#c98a4b', '#6b3518'], ['#d9d9d9', '#555555']];
 
@@ -333,13 +366,14 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = [];
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = [];
   syncMembers();
   camZ = player.z - CAM_BACK;
   state = 'run';
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('result').classList.add('hidden');
   document.getElementById('quitBtn').classList.remove('hidden');
+  document.getElementById('jumpBtn').classList.remove('hidden');
 }
 
 function formation(m) {
@@ -459,6 +493,32 @@ function stepBlip(step) {      // climbing the ladder: each step a little higher
   if (!actx || muted) return;
   tone(actx.currentTime + 0.01, 72 + (step % 24), 0.12, 'square', 0.18, sfxBus);
 }
+function boing() {
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01, o = actx.createOscillator(), g = actx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(700, t + 0.18);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+  o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + 0.32);
+}
+// Wet licking: quick "lap lap lap" (tongue smacks + wet noise), then a big slurp
+function lickSound() {
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + 0.01;
+  for (let k = 0; k < 4; k++) {
+    const t = t0 + k * 0.11 + Math.random() * 0.02;
+    const n = actx.createBufferSource(); n.buffer = noiseBuf;
+    const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 5;
+    f.frequency.setValueAtTime(900 + Math.random() * 300, t); f.frequency.exponentialRampToValueAtTime(2800, t + 0.06);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.2, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    n.connect(f); f.connect(g); g.connect(sfxBus); n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
+    const o = actx.createOscillator(), og = actx.createGain();   // the little tongue "smack"
+    o.type = 'sine'; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(110, t + 0.04);
+    og.gain.setValueAtTime(0.6, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.connect(og); og.connect(sfxBus); o.start(t); o.stop(t + 0.06);
+  }
+  setTimeout(slurp, 460);
+}
 function slurp() {
   if (!actx || muted) return;
   const t = actx.currentTime + 0.01;
@@ -526,6 +586,7 @@ function updateSoundBtn() {
 const keys = { left: false, right: false };
 let drag = null;
 window.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); doJump(); }
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
 });
@@ -601,7 +662,7 @@ function updateRun(dt) {
     if (Math.abs(a.x) > ROAD + 4) { a.gone = true; continue; }
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - a.z) < 0.45 && Math.abs(m.x - a.x) < 0.55) { killMember(i); a.gone = true; break; } // an arrow stops in the first puppy it hits
+      if (Math.abs(mz - a.z) < 0.45 && Math.abs(m.x - a.x) < 0.55 && airAt(mz) < 0.7) { killMember(i); a.gone = true; break; } // an arrow stops in the first puppy it hits
     }
   }
 
@@ -612,7 +673,7 @@ function updateRun(dt) {
     if (Math.abs(o.z - player.z) > 14) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 + 0.1) killMember(i);
+      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 + 0.1 && airAt(mz) < 0.3) killMember(i);
     }
   }
   // Spinning lasers: a beam turning round a post
@@ -623,7 +684,7 @@ function updateRun(dt) {
     const c = Math.cos(o.ang), sn = Math.sin(o.ang);
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], dx = m.x - o.x, dz = player.z + m.oz - o.z;
-      if (Math.abs(dx * c + dz * sn) <= o.len && Math.abs(dx * sn - dz * c) < 0.3) killMember(i);
+      if (Math.abs(dx * c + dz * sn) <= o.len && Math.abs(dx * sn - dz * c) < 0.3 && airAt(player.z + m.oz) < 0.3) killMember(i);
     }
   }
   // Spike traps that pop up and down
@@ -639,20 +700,21 @@ function updateRun(dt) {
     if (!o.up || Math.abs(o.z - player.z) > 16) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (mz >= o.z && mz <= o.z + o.d && m.x >= o.x0 && m.x <= o.x1) killMember(i);
+      if (mz >= o.z && mz <= o.z + o.d && m.x >= o.x0 && m.x <= o.x1 && airAt(mz) < 0.5 * (o.h || 1)) killMember(i);
     }
   }
 
   // Holes: puppies that run over one fall in; the hot dog just hops over
-  player.jump = 0;
+  player.jump = airAt(player.z);
+  jumps = jumps.filter(j => j.z0 + j.len > player.z - 15);
   for (const o of objs) {
     if (o.t !== 'hole' || Math.abs(o.z - player.z) > 16) continue;
     if (player.z >= o.z - 0.3 && player.z <= o.z + o.d + 0.3 && player.x >= o.x0 - 0.3 && player.x <= o.x1 + 0.3) {
-      player.jump = Math.sin(Math.PI * clamp((player.z - o.z + 0.3) / (o.d + 0.6), 0, 1)) * 1.1;
+      player.jump = Math.max(player.jump, Math.sin(Math.PI * clamp((player.z - o.z + 0.3) / (o.d + 0.6), 0, 1)) * 1.1);
     }
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (mz > o.z + 0.15 && mz < o.z + o.d - 0.15 && m.x > o.x0 + 0.15 && m.x < o.x1 - 0.15) killMember(i, true);
+      if (mz > o.z + 0.15 && mz < o.z + o.d - 0.15 && m.x > o.x0 + 0.15 && m.x < o.x1 - 0.15 && airAt(mz) < 0.05) killMember(i, true);
     }
   }
   // Swinging hammers: a big mallet swinging side to side across the road
@@ -726,6 +788,7 @@ function updateEffects(dt) {
 // ───────────────────────── Ladder & treasure ─────────────────────────
 function startLadder() {
   state = 'ladder';
+  document.getElementById('jumpBtn').classList.add('hidden');
   if (lossAcc > 0) lossAcc = 0;
   lad = { step: 0, dogStep: 0, t: 0.8, cam: 0, done: false, doneT: 0, top: false, shown: false, pops: [], coins: [], pulse: 0, slobber: [], licked: -1 };
 }
@@ -734,7 +797,7 @@ function updateLadder(dt) {
   const interval = L > 20 ? 0.12 : 0.2;
   lad.t -= dt; lad.pulse += dt;
   if (!lad.done && lad.t <= 0) {
-    const needNow = lad.step + 1;
+    const needNow = level.needs[lad.step];
     if (lad.step < L && count >= needNow) {
       count -= needNow; lad.step++; lad.t = interval;
       lad.pops.push({ step: lad.step, t: 0, text: '−' + needNow });
@@ -764,6 +827,7 @@ function finishLevel() {
   store.set('hotdog-run-save', save);
   state = 'result';
   document.getElementById('quitBtn').classList.add('hidden');
+  document.getElementById('jumpBtn').classList.add('hidden');
   document.getElementById('resTitle').textContent = top ? 'Treasure!' : 'So close!';
   document.getElementById('resSub').textContent = top
     ? 'You reached the top of the ladder and opened the chest!'
@@ -1174,7 +1238,12 @@ function drawRunScene() {
   if (player && state === 'run') {
     for (const m of members) {
       const z = player.z + m.oz;
-      items.push({ z, f: () => { const p = P(m.x, 0, z); if (p) drawPuppy(ctx, p.x, p.y, p.s, m.coat, m.spot, m.ph, true); } });
+      items.push({ z, f: () => {
+        const air = airAt(z), p = P(m.x, air, z);
+        if (!p) return;
+        if (air > 0.05) { const g = P(m.x, 0, z); if (g) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ellipse(ctx, g.x, g.y, 0.18 * g.s, 0.06 * g.s); ctx.fill(); } }
+        drawPuppy(ctx, p.x, p.y, p.s, m.coat, m.spot, m.ph, air < 0.05);
+      } });
     }
     for (const f of fallers) {
       items.push({ z: f.z, f: () => {
@@ -1186,7 +1255,8 @@ function drawRunScene() {
       } });
     }
     items.push({ z: player.z, f: () => {
-      const p = P(player.x, player.jump || 0, player.z);
+      const air = player.jump || 0, p = P(player.x, air, player.z);
+      if (air > 0.05) { const g = P(player.x, 0, player.z); if (g) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ellipse(ctx, g.x, g.y, 0.45 * g.s, 0.14 * g.s); ctx.fill(); } }
       if (p) drawDogBack(ctx, p.x, p.y, p.s, false);
     } });
   }
@@ -1203,7 +1273,7 @@ function drawRunScene() {
 
   if (player && state === 'run') {
     // crowd counter bubble
-    const p = P(player.x, 2.2, player.z);
+    const p = P(player.x, 2.2 + (player.jump || 0), player.z);
     if (p) {
       const txt = String(count);
       ctx.font = `900 ${Math.round(0.6 * p.s)}px system-ui, sans-serif`;
@@ -1302,7 +1372,7 @@ function drawLicks() {
   let tongue = 0;
   if (u >= 0.25 && u <= 0.8) tongue = Math.sin(Math.PI * (u - 0.25) / 0.55) * S * 0.9;
   if (u >= 0.25 && lad.licked < i) {
-    lad.licked = i; slurp();
+    lad.licked = i; lickSound();
     lad.slobber.push({ x, y0: y + S * 0.24 - S * 0.9, y1: y + S * 0.3, w: S * 0.3, wob: Math.random() * 6 });
   }
   // wet slobber left on the screen
@@ -1358,13 +1428,13 @@ function drawLadderScene(dt) {
     ctx.fillRect(cx - lw, y - 4, lw * 2, 8);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = done ? '#2b9348' : '#1d2433';
-    ctx.fillText(done ? `✓ ${i}` : `needs ${i}`, cx + lw + 14, y);
+    ctx.fillText(done ? `✓ ${level.needs[i - 1]}` : `needs ${level.needs[i - 1]}`, cx + lw + 14, y);
     if (done) {
-      const shown = Math.min(i, 5);
+      const shown = Math.min(level.needs[i - 1], 5);
       for (let k = 0; k < shown; k++) {
         drawPuppy(ctx, cx - lw - 18 - k * 13, y + 4, 26, COATS[(i + k) % COATS.length], (i + k) % 3 === 0, k, false);
       }
-      if (i > 5) { ctx.textAlign = 'right'; ctx.fillStyle = '#1d2433'; ctx.fillText(`×${i}`, cx - lw - 18 - 5 * 13, y - 4); }
+      if (level.needs[i - 1] > 5) { ctx.textAlign = 'right'; ctx.fillStyle = '#1d2433'; ctx.fillText(`×${level.needs[i - 1]}`, cx - lw - 18 - 5 * 13, y - 4); }
     }
   }
   // crowd waiting at the bottom
@@ -1389,7 +1459,7 @@ function drawLadderScene(dt) {
   const hx = (W + 48) / 2;
   outlinedText(ctx, `Puppies left: ${count}`, hx, 34, 18, '#1d2433', '#ffffff');
   const msg = lad.done
-    ? (lad.top ? 'You reached the treasure!' : `Step ${lad.step + 1} needs ${lad.step + 1} puppies`)
+    ? (lad.top ? 'You reached the treasure!' : `Step ${lad.step + 1} needs ${level.needs[lad.step]} puppies`)
     : `Step ${lad.step + 1} of ${L}`;
   outlinedText(ctx, msg, hx, 56, 14, lad.done && !lad.top ? '#e63946' : '#2f8cff', '#ffffff');
 }
@@ -1428,6 +1498,7 @@ function showMenu() {
   state = 'menu'; level = null; objs = []; player = null; lad = null;
   document.getElementById('result').classList.add('hidden');
   document.getElementById('quitBtn').classList.add('hidden');
+  document.getElementById('jumpBtn').classList.add('hidden');
   document.getElementById('menu').classList.remove('hidden');
   refreshMenu();
 }
@@ -1445,6 +1516,7 @@ document.getElementById('musicBtn').onclick = () => {
 };
 updateSoundBtn();
 document.getElementById('quitBtn').onclick = showMenu;
+document.getElementById('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); doJump(); });
 document.getElementById('resMain').onclick = e => { initAudio(); const n = +e.currentTarget.dataset.next; menuLevel = n; startLevel(n); };
 document.getElementById('resRetry').onclick = () => { initAudio(); startLevel(level.lv); };
 document.getElementById('resMenu').onclick = () => { menuLevel = save.unlocked; showMenu(); };
