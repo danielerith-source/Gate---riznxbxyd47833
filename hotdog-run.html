@@ -107,7 +107,7 @@
       <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
       <li>Watch out for swinging hammers and rolling boulders too.</li>
       <li>Tap <b>JUMP</b> (or press space) to hop over holes, spikes, lasers and arrows. The puppies jump too! Saws, hammers and boulders are too tall to jump, so dodge them.</li>
-      <li>Win a level and the puppies will give you a lick!</li>
+      <li>Win a level and the puppies will give you a lick and say “Baby blanky!”</li>
       <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3… and on the big levels the top step needs 100!</li>
       <li>Reach the top to open the treasure chest!</li>
     </ul>
@@ -493,6 +493,23 @@ function stepBlip(step) {      // climbing the ladder: each step a little higher
   if (!actx || muted) return;
   tone(actx.currentTime + 0.01, 72 + (step % 24), 0.12, 'square', 0.18, sfxBus);
 }
+// The puppies' voice: the browser's own speech, pitched up high like a puppy.
+function sayBabyBlanky() {
+  if (muted) return;
+  try {
+    const ss = window.speechSynthesis;
+    if (!ss) return;
+    ss.cancel();
+    const u = new SpeechSynthesisUtterance('Baby blanky!');
+    u.pitch = 2; u.rate = 0.9; u.volume = 1;
+    const v = ss.getVoices().find(v => /^en/i.test(v.lang));
+    if (v) u.voice = v;
+    ss.speak(u);
+  } catch (e) {}
+}
+function primeSpeech() { // some tablets only allow speech after a first tap, so start it silently on Play
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {}
+}
 function boing() {
   if (!actx || muted) return;
   const t = actx.currentTime + 0.01, o = actx.createOscillator(), g = actx.createGain();
@@ -547,19 +564,27 @@ const MUSIC = {
   bass: [36, 43, 31, 38, 33, 40, 29, 36, 36, 43, 31, 38, 33, 40, 29, 31] // two roots per bar
 };
 let musicStep = 0, musicNext = 0, musicTimer = null;
+// Jeopardy! 0 = calm, 1 = full speed: builds over the last 30% of the run and stays up on the ladder
+function musicTension() {
+  if (state === 'run' && level && player) return clamp((player.z / level.end - 0.7) / 0.3, 0, 1);
+  if (state === 'ladder' && lad && !lad.done) return 1;
+  return 0;
+}
 function startMusic() {
   if (musicTimer) return;
   musicNext = actx.currentTime + 0.1;
   musicTimer = setInterval(() => {
     if (!actx) return;
-    const e = 60 / MUSIC.bpm / 2;   // one eighth note
+    const tension = musicTension();
+    const e = 60 / (MUSIC.bpm * (1 + 0.45 * tension)) / 2;   // one eighth note, faster near the end
+    const tr = tension > 0.9 ? 2 : tension > 0.5 ? 1 : 0;      // and the tune climbs higher
     while (musicNext < actx.currentTime + 0.15) {
       const st = musicStep % 64, t = musicNext;
       if (!musicOff) {
         const m = MUSIC.mel[st];
-        if (m) tone(t, m, e * 0.9, 'square', 0.32, musicBus);
-        if (st % 4 === 0) { const b = MUSIC.bass[(st / 4) | 0]; tone(t, b, e * 1.8, 'triangle', 0.9, musicBus); tone(t, b + 12, e * 1.6, 'square', 0.12, musicBus); }
-        if (st % 4 === 2) tone(t, MUSIC.bass[(st / 4) | 0] + 12, e * 0.9, 'triangle', 0.6, musicBus);
+        if (m) tone(t, m + tr, e * 0.9, 'square', 0.32, musicBus);
+        if (st % 4 === 0) { const b = MUSIC.bass[(st / 4) | 0] + tr; tone(t, b, e * 1.8, 'triangle', 0.9, musicBus); tone(t, b + 12, e * 1.6, 'square', 0.12, musicBus); }
+        if (st % 4 === 2) tone(t, MUSIC.bass[(st / 4) | 0] + tr + 12, e * 0.9, 'triangle', 0.6, musicBus);
         if (st % 4 === 0) {              // kick drum
           const o = actx.createOscillator(), g = actx.createGain();
           o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
@@ -568,6 +593,7 @@ function startMusic() {
         }
         if (st % 4 === 2) noise(t, 0.12, 'bandpass', 1800, 0.8, 0.7, musicBus);   // snare
         noise(t, 0.03, 'highpass', 7000, 0.7, st % 2 ? 0.25 : 0.4, musicBus);   // hi-hat
+        if (tension > 0.35) noise(t + e / 2, 0.025, 'highpass', 8000, 0.7, 0.22 * tension, musicBus); // nervous extra hi-hats
       }
       musicNext += e; musicStep++;
     }
@@ -790,7 +816,7 @@ function startLadder() {
   state = 'ladder';
   document.getElementById('jumpBtn').classList.add('hidden');
   if (lossAcc > 0) lossAcc = 0;
-  lad = { step: 0, dogStep: 0, t: 0.8, cam: 0, done: false, doneT: 0, top: false, shown: false, pops: [], coins: [], pulse: 0, slobber: [], licked: -1 };
+  lad = { step: 0, dogStep: 0, t: 0.8, cam: 0, done: false, doneT: 0, top: false, shown: false, pops: [], coins: [], pulse: 0, slobber: [], licked: -1, said: false };
 }
 function updateLadder(dt) {
   const L = level.steps;
@@ -816,7 +842,7 @@ function updateLadder(dt) {
   for (const c of lad.coins) { c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 700 * dt; }
   if (lad.done) {
     lad.doneT += dt;
-    if (!lad.shown && lad.doneT > (lad.top ? LICK_START + LICKERS * LICK_EACH + 0.3 : 1.3)) { lad.shown = true; finishLevel(); }
+    if (!lad.shown && lad.doneT > (lad.top ? LICK_START + LICKERS * LICK_EACH + UNISON_TIME : 1.3)) { lad.shown = true; finishLevel(); }
   }
 }
 function finishLevel() {
@@ -1332,7 +1358,7 @@ function drawHud(progress) {
 
 // ───────────────────────── Scene: the ladder ─────────────────────────
 // ───────────────────────── Winning: puppies lick the screen! ─────────────────────────
-const LICK_START = 1.0, LICK_EACH = 0.85, LICKERS = 3;
+const LICK_START = 1.0, LICK_EACH = 0.85, LICKERS = 3, UNISON_TIME = 2.2;
 function drawPuppyFace(c, x, y, S, coat, tongue) {
   // ears
   c.fillStyle = coat[1];
@@ -1363,6 +1389,8 @@ function drawLicks() {
   const lt = lad.doneT - LICK_START;
   const S = Math.min(W, H) * 0.5;
   const xs = [0.3, 0.72, 0.5];
+  drawSlobber();
+  if (lt >= LICKERS * LICK_EACH) { drawUnison(lt - LICKERS * LICK_EACH); return; }
   const i = Math.min(LICKERS - 1, Math.floor(lt / LICK_EACH));
   const u = clamp((lt - i * LICK_EACH) / LICK_EACH, 0, 1);
   const x = W * xs[i];
@@ -1375,6 +1403,34 @@ function drawLicks() {
     lad.licked = i; lickSound();
     lad.slobber.push({ x, y0: y + S * 0.24 - S * 0.9, y1: y + S * 0.3, w: S * 0.3, wob: Math.random() * 6 });
   }
+  drawPuppyFace(ctx, x, y, S, COATS[(i * 2 + level.lv) % COATS.length], tongue);
+  if (rise > 0.5) outlinedText(ctx, ['Slurp!', 'Lick!', 'Yay!'][i], x, y - S * 0.62, Math.round(S * 0.16), '#ff7aa2', '#ffffff');
+}
+// All three puppies pop up together and say "Baby blanky!"
+function drawUnison(t) {
+  const S = Math.min(W * 0.36, H * 0.3);
+  const rise = clamp(t / 0.3, 0, 1);
+  if (t > 0.25 && !lad.said) { lad.said = true; sayBabyBlanky(); }
+  const talk = t > 0.3 && t < 1.6 ? Math.abs(Math.sin((t - 0.3) * 9)) : 0; // mouths open and shut as they talk
+  [0.2, 0.5, 0.8].forEach((fx, k) => {
+    const bob = Math.sin(t * 8 + k) * S * 0.03;
+    const y = H + S * 0.6 - rise * S * 1.05 + bob;
+    drawPuppyFace(ctx, W * fx, y, S, COATS[(k * 2 + level.lv) % COATS.length], talk * S * 0.28);
+  });
+  if (t > 0.25) {
+    const fs = Math.round(Math.min(W * 0.11, 46));
+    const by = H - S * 1.15 - fs * 1.4, bw = Math.min(W - 32, fs * 7.2), bh = fs * 1.8;
+    const pop = Math.min(1, (t - 0.25) * 6);
+    ctx.save(); ctx.translate(W / 2, by); ctx.scale(pop, pop);
+    ctx.fillStyle = '#ffffff'; rr(ctx, -bw / 2, -bh / 2, bw, bh, bh / 2); ctx.fill();
+    ctx.strokeStyle = '#ff7aa2'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.moveTo(-bw * 0.08, bh / 2 - 2); ctx.lineTo(0, bh / 2 + fs * 0.6); ctx.lineTo(bw * 0.08, bh / 2 - 2); ctx.fill();
+    outlinedText(ctx, 'Baby blanky!', 0, 2, fs, '#ff4f8b', '#ffffff');
+    ctx.restore();
+  }
+}
+function drawSlobber() {
   // wet slobber left on the screen
   for (const sl of lad.slobber) {
     ctx.fillStyle = 'rgba(190,225,255,0.32)';
@@ -1384,8 +1440,6 @@ function drawLicks() {
     ctx.fillStyle = 'rgba(190,225,255,0.4)';
     for (let k = 0; k < 3; k++) { const dx = (k - 1) * sl.w * 0.3; ellipse(ctx, sl.x + dx, sl.y1 + 8 + Math.sin(sl.wob + k) * 6, 5, 9); ctx.fill(); }
   }
-  drawPuppyFace(ctx, x, y, S, COATS[(i * 2 + level.lv) % COATS.length], tongue);
-  if (rise > 0.5) outlinedText(ctx, ['Slurp!', 'Lick!', 'Yay!'][i], x, y - S * 0.62, Math.round(S * 0.16), '#ff7aa2', '#ffffff');
 }
 
 function drawLadderScene(dt) {
@@ -1504,7 +1558,7 @@ function showMenu() {
 }
 document.getElementById('lvlDown').onclick = () => { menuLevel--; refreshMenu(); };
 document.getElementById('lvlUp').onclick = () => { menuLevel++; refreshMenu(); };
-document.getElementById('playBtn').onclick = () => { initAudio(); startLevel(menuLevel); };
+document.getElementById('playBtn').onclick = () => { initAudio(); primeSpeech(); startLevel(menuLevel); };
 document.getElementById('soundBtn').onclick = () => {
   muted = !muted; store.set('hotdog-run-muted', muted); updateSoundBtn();
   initAudio(); if (sfxBus) sfxBus.gain.value = muted ? 0 : 1;
