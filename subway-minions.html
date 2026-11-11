@@ -86,8 +86,8 @@
 <div id="hud">
   <div>
     <div class="big" id="score">0</div>
-    <div class="small">best <span id="bestHud">0</span> · x<span id="mult">1.0</span></div>
-    <div id="crew"></div>
+    <div class="small">best <span id="bestHud">0</span><span id="mult" hidden></span></div>
+    <div id="crew" hidden></div>
   </div>
   <div class="right">
     <div class="big">🍌 <span id="bananas">0</span></div>
@@ -97,7 +97,7 @@
   </div>
 </div>
 
-<button id="buyBtn">🍌 Buy board (4)</button>
+<button id="buyBtn">🍌 Buy board (10)</button>
 
 <div id="buttons">
   <button id="muteBtn" aria-label="Toggle sound">🔊</button>
@@ -107,14 +107,15 @@
 <div class="overlay" id="menu">
   <div class="card">
     <h1>SUBWAY<br><em>MINIONS</em></h1>
-    <p>Lead your crew of minions through the subway. Grab bananas, climb onto the trains and hop from roof to roof. Every crash costs you a crew member. Crash with nobody left and the run is over.</p>
+    <p>Run your minion through the subway. Grab bananas, climb onto the trains and hop from roof to roof. Crash and your minion faints, unless a banana board saves you.</p>
     <ul>
       <li><b>Swipe left / right</b> (or ← →): change track</li>
       <li><b>Swipe up</b> (or ↑ / Space): jump hurdles and onto trains</li>
       <li><b>Swipe down</b> (or ↓): roll under bars</li>
       <li><b>Dodge</b> the posts and the fronts of trains</li>
-      <li><b>4 🍌 = 1 banana board</b> (button or B): you float, jump higher, and it takes one crash for you</li>
-      <li><b>Rescue</b> stray minions to grow your crew and score multiplier</li>
+      <li><b>Big red trains</b> move towards you and are too tall to climb. Only a banana board can jump you onto them</li>
+      <li><b>10 🍌 = 1 banana board</b> (button or B): you float, jump higher, and it's an extra life. Crash and the board disappears but you keep going</li>
+      <li><b>P / Esc</b>: pause · <b>🔊</b>: music and sound on/off</li>
     </ul>
     <button class="play" id="startBtn">Play</button>
   </div>
@@ -129,7 +130,7 @@
 
 <div class="overlay hidden" id="overMenu">
   <div class="card">
-    <h2>Crew lost!</h2>
+    <h2>Your minion fainted!</h2>
     <div class="stats">
       <div><b id="finalScore">0</b>score</div>
       <div><b id="finalBananas">0</b>bananas</div>
@@ -154,9 +155,9 @@
   const NEAR = CAM_Z + 0.6;
   const FAR = 125;
   const WALL_X = 4.3, CEIL_Y = 9.5;
-  const TRAIN_H = 2.0, RAMP_LEN = 4;
+  const TRAIN_H = 2.0, BIG_TRAIN_H = 3.2, RAMP_LEN = 4;
   const STEP = 0.45;           // how far below a roof you can be and still land on it
-  const BOARD_TIME = 20, BOARD_COST = 4, BOARD_LIFT = 0.25;
+  const BOARD_COST = 10, BOARD_LIFT = 0.25;
   let camLift = 0;
 
   function resize() {
@@ -191,6 +192,7 @@
     ceilA: hex('#1c2236'), ceilB: hex('#192032'),
     sleeper: hex('#4a3b2f'), rail: hex('#aab3c5'), lamp: hex('#ffcf7a'),
     train: hex('#3f7fbf'), trainSide: hex('#2e5f91'), trainTop: hex('#6a9fd4'),
+    bigTrain: hex('#c0463c'), bigTrainSide: hex('#8f3029'), bigTrainTop: hex('#d9776c'),
     glass: hex('#b9e3ff'), stripe: hex('#ffb547'),
     ramp: hex('#7a8296'), rampTop: hex('#9aa2b6'),
     hurdleRed: hex('#e94b4b'), hurdleWhite: hex('#f2f2f2'),
@@ -236,8 +238,81 @@
     board: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.06), i * 70)); },
     boardBreak: () => beep(300, 0.4, 'sawtooth', 0.07, -220),
     magnet: () => { beep(500, 0.1, 'sine', 0.06, 400); setTimeout(() => beep(900, 0.15, 'sine', 0.05, 300), 100); },
+    horn: () => { beep(220, 0.5, 'sawtooth', 0.05); beep(277, 0.5, 'sawtooth', 0.04); },
     over: () => { beep(330, 0.25, 'triangle', 0.07, -80); setTimeout(() => beep(220, 0.45, 'triangle', 0.07, -80), 220); },
   };
+
+
+  // ---------- Background music: an original funky loop, synthesised live ----------
+  const music = (() => {
+    const BPM = 104, STEP = 60 / BPM / 4;             // 16th notes
+    const ROOTS = [45, 41, 48, 43];                   // A2, F2, C3, G2 (Am - F - C - G)
+    const MINOR = [true, false, false, false];
+    const BASS = [0, null, 0, null, 12, null, 10, 7, 0, null, 3, null, 5, 7, null, 12];
+    let timer = null, next = 0, step = 0, bus = null, noise = null;
+    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+    function ensure() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!bus) {
+        bus = audioCtx.createGain(); bus.gain.value = 0.45; bus.connect(audioCtx.destination);
+        noise = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+        const d = noise.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+    }
+    function env(g, t, v, dur) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(v, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    }
+    function tone(freq, t, dur, type, v, filterHz) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      let out = o;
+      if (filterHz) { const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterHz; o.connect(f); out = f; }
+      out.connect(g); g.connect(bus); env(g, t, v, dur);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    function kick(t) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+      o.connect(g); g.connect(bus); env(g, t, 0.55, 0.18);
+      o.start(t); o.stop(t + 0.2);
+    }
+    function hiss(t, dur, v, type, hz) {
+      const src = audioCtx.createBufferSource(), f = audioCtx.createBiquadFilter(), g = audioCtx.createGain();
+      src.buffer = noise; f.type = type; f.frequency.value = hz;
+      src.connect(f); f.connect(g); g.connect(bus); env(g, t, v, dur);
+      src.start(t); src.stop(t + dur + 0.02);
+    }
+    function schedule() {
+      while (next < audioCtx.currentTime + 0.15) {
+        const s = step % 16, bar = Math.floor(step / 16) % 4, root = ROOTS[bar];
+        if (s === 0 || s === 7 || s === 10) kick(next);
+        if (s === 4 || s === 12) hiss(next, 0.14, 0.22, 'bandpass', 1800);
+        if (s % 2 === 0) hiss(next, 0.035, s % 4 === 2 ? 0.07 : 0.04, 'highpass', 7000);
+        if (BASS[s] !== null) tone(mtof(root + BASS[s]), next, STEP * 0.9, 'sawtooth', 0.13, 600);
+        if (s === 6 || s === 14) {
+          const third = MINOR[bar] ? 3 : 4;
+          for (const iv of [12, 12 + third, 19]) tone(mtof(root + iv), next, STEP * 1.2, 'square', 0.025, 2400);
+        }
+        if (bar === 3 && s >= 12 && s % 2 === 0) tone(mtof(root + 24 + (s - 12)), next, STEP * 0.8, 'triangle', 0.04);
+        next += STEP; step++;
+      }
+    }
+    return {
+      start() {
+        if (muted || timer) return;
+        try {
+          ensure(); if (audioCtx.state === 'suspended') audioCtx.resume();
+          next = audioCtx.currentTime + 0.05;
+          timer = setInterval(schedule, 25);
+        } catch (e) {}
+      },
+      stop() { if (timer) { clearInterval(timer); timer = null; } },
+      get playing() { return !!timer; },
+    };
+  })();
 
   // ---------- State ----------
   let best = 0;
@@ -251,7 +326,7 @@
       t: 0, dist: 0, speed: 14, score: 0,
       bananas: 0, totalBananas: 0,
       lane: 1, px: 0, py: 0, vy: 0, rollT: 0, grounded: true,
-      crew: [CREW_COLOURS[0], CREW_COLOURS[1]],
+      crew: [],
       invuln: 0, magnet: 0, board: 0, shake: 0, flash: 0,
       objects: [], particles: [], nextRow: 30,
       busy: [0, 0, 0],          // z up to which each lane is occupied by a train
@@ -289,7 +364,15 @@
 
     for (const l of blocked) {
       const r = Math.random();
-      if (r < 0.4) {
+      if (r < 0.4 && Math.random() < 0.35 + 0.2 * d) {
+        // BIG moving train: too tall to climb, only reachable with a banana board
+        const len = rnd(16, 24);
+        // clear the stretch of this track it will sweep through (far away, hidden in the fog)
+        G.objects = G.objects.filter((o) => !(o.lane === l && o.z > 60 && o.z < z));
+        G.objects.push({ kind: 'train', big: true, h: BIG_TRAIN_H, vz: rnd(5, 9), lane: l, z, len });
+        G.busy[l] = z + len + 3;
+        bananaLine(l, z + 2, Math.floor((len - 3) / 1.8), BIG_TRAIN_H + 0.8, 1.8);
+      } else if (r < 0.4) {
         const long = Math.random() < 0.5;
         const len = long ? rnd(14, 22) : 7;
         const ramp = Math.random() < (long ? 0.6 : 0.3);
@@ -314,11 +397,7 @@
     let special = false;
     for (const l of free) {
       const r = Math.random();
-      if (!special && r < 0.08 && G.crew.length < 12) {
-        special = true;
-        G.objects.push({ kind: 'stray', lane: l, z: z + 3, len: 0.6, colour: CREW_COLOURS[Math.floor(Math.random() * CREW_COLOURS.length)] });
-        bananaLine(l, z + 5, 3);
-      } else if (!special && r < 0.11 && G.magnet <= 0) {
+      if (!special && r < 0.04 && G.magnet <= 0) {
         special = true;
         G.objects.push({ kind: 'magnet', lane: l, z: z + 3, len: 0.6 });
       } else if (r < 0.85) {
@@ -342,7 +421,7 @@
   function buyBoard() {
     if (state !== 'play' || G.board > 0 || G.bananas < BOARD_COST) return;
     G.bananas -= BOARD_COST;
-    G.board = BOARD_TIME;
+    G.board = 1;   // an extra life: lasts until you crash
     sfx.board();
     burst(G.px, G.py + 0.3, 0, '#ffd23f', 16);
   }
@@ -400,6 +479,7 @@
   muteBtn.textContent = muted ? '🔇' : '🔊';
   muteBtn.onclick = () => {
     muted = !muted; muteBtn.textContent = muted ? '🔇' : '🔊';
+    if (muted) music.stop(); else if (state === 'play') music.start();
     try { localStorage.setItem('sm_muted', muted ? '1' : '0'); } catch (e) {}
   };
   ui.bestHud.textContent = best;
@@ -407,19 +487,23 @@
   function startGame() {
     newGame();
     state = 'play';
+    clearTimeout(overTimer);
+    music.start();
     ui.menu.classList.add('hidden'); ui.over.classList.add('hidden'); ui.pause.classList.add('hidden');
     ui.buy.style.display = 'block';
     renderCrewHud();
     last = performance.now();
   }
   function togglePause() {
-    if (state === 'play') { state = 'pause'; ui.pause.classList.remove('hidden'); }
-    else if (state === 'pause') { state = 'play'; ui.pause.classList.add('hidden'); last = performance.now(); }
+    if (state === 'play') { state = 'pause'; ui.pause.classList.remove('hidden'); music.stop(); }
+    else if (state === 'pause') { state = 'play'; ui.pause.classList.add('hidden'); last = performance.now(); music.start(); }
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
 
+  let overTimer = null;
   function gameOver() {
     state = 'over';
+    music.stop();
     sfx.over();
     ui.buy.style.display = 'none';
     const s = Math.floor(G.score);
@@ -430,7 +514,7 @@
     $('finalBest').textContent = best;
     $('newBest').hidden = !isBest;
     ui.bestHud.textContent = best;
-    setTimeout(() => ui.over.classList.remove('hidden'), 700);
+    overTimer = setTimeout(() => ui.over.classList.remove('hidden'), 1400);
   }
   function renderCrewHud() {
     ui.crew.innerHTML = G.crew.map((c) => `<span style="background:${c}"></span>`).join('');
@@ -458,15 +542,8 @@
       G.invuln = 1.6;
       return;
     }
-    if (G.crew.length === 0) {
-      burst(G.px, G.py + 0.8, 0, '#ff5d5d', 24);
-      gameOver();
-      return;
-    }
-    const lost = G.crew.pop();
-    burst(G.px, G.py + 0.6, -1, lost, 18);
-    renderCrewHud();
-    G.invuln = 1.6;
+    G.faintAt = performance.now();
+    gameOver();
   }
 
   // Height of the surface under the player: track (0), a ramp, or a train roof.
@@ -479,8 +556,11 @@
       if (o.kind === 'ramp') {
         const h = TRAIN_H * Math.min(1, (0 - o.z) / o.len);
         if (G.py >= h - 1.0) s = Math.max(s, h);
-      } else if (G.py >= TRAIN_H - STEP) {
-        s = Math.max(s, TRAIN_H);
+      } else {
+        const top = o.h || TRAIN_H;
+        // big trains: you can only land on them with a banana board (or stay if already on top)
+        const allowed = !o.big || G.board > 0 || G.py >= top - 0.05;
+        if (allowed && G.py >= top - STEP) s = Math.max(s, top);
       }
     }
     return s;
@@ -494,7 +574,10 @@
     G.score += dz * multiplier() * 0.5;
 
     // move world
-    for (const o of G.objects) o.z -= dz;
+    for (const o of G.objects) {
+      o.z -= dz + (o.vz || 0) * dt;
+      if (o.big && !o.honked && o.z < 45 && o.z > 0 && Math.abs(laneX(o.lane) - G.px) < 1.2) { o.honked = true; sfx.horn(); }
+    }
     G.nextRow -= dz;
     for (let l = 0; l < 3; l++) G.busy[l] -= dz;
     while (G.nextRow < FAR) { spawnRow(G.nextRow); G.nextRow += rowSpacing(); }
@@ -515,7 +598,6 @@
     if (G.rollT > 0) G.rollT -= dt;
     if (G.invuln > 0) G.invuln -= dt;
     if (G.magnet > 0) G.magnet -= dt;
-    if (G.board > 0) G.board -= dt;
     if (G.shake > 0) G.shake -= dt;
     if (G.flash > 0) G.flash -= dt;
     camLift += (G.py * 0.55 - camLift) * Math.min(1, dt * 5);
@@ -541,7 +623,12 @@
       if (Math.abs(G.px - ox) >= reach) continue;
 
       switch (o.kind) {
-        case 'train': if (pBottom < TRAIN_H - STEP) hit(); break;
+        case 'train': {
+          const top = o.h || TRAIN_H;
+          const onTop = G.grounded && Math.abs(G.py - top) < 0.05;
+          if (!onTop && pBottom < top - (o.big && G.board <= 0 ? 0 : STEP)) hit();
+          break;
+        }
         case 'hurdle': if (pBottom < 0.95) { hit(); o.dead = true; } break;
         case 'bar': if (pTop > 1.3 && pBottom < 2.1) { hit(); o.dead = true; } break;
         case 'post': hit(); o.dead = true; break;
@@ -575,14 +662,14 @@
     ui.score.textContent = Math.floor(G.score);
     ui.bananas.textContent = G.bananas;
     ui.mult.textContent = multiplier().toFixed(2).replace(/0$/, '');
-    for (const [bar, v, max] of [[ui.magnetBar, G.magnet, 8], [ui.boardBar, G.board, BOARD_TIME]]) {
+    for (const [bar, v, max] of [[ui.magnetBar, G.magnet, 8]]) {
       if (v > 0) { bar.style.display = 'block'; bar.firstElementChild.style.width = (v / max * 100) + '%'; }
       else bar.style.display = 'none';
     }
     const canBuy = G.board <= 0 && G.bananas >= BOARD_COST;
     ui.buy.disabled = !canBuy;
     ui.buy.classList.toggle('ready', canBuy);
-    ui.buy.textContent = G.board > 0 ? '🍌 Board active' : `🍌 Buy board (${BOARD_COST})`;
+    ui.buy.textContent = G.board > 0 ? '🍌 Extra life on board' : `🍌 Buy board (${BOARD_COST})`;
   }
 
   // ---------- Rendering ----------
@@ -667,25 +754,30 @@
     const x = laneX(o.lane), x0 = x - 1.0, x1 = x + 1.0;
     const z0 = o.z, z1 = o.z + o.len;
     if (z1 < NEAR) return;
-    const t = drawBox(x0, x1, 0.15, TRAIN_H, z0, z1, C.train, C.trainSide, C.trainTop);
+    const H = o.h || TRAIN_H, k = H / TRAIN_H;
+    const t = o.big
+      ? drawBox(x0, x1, 0.15, H, z0, z1, C.bigTrain, C.bigTrainSide, C.bigTrainTop)
+      : drawBox(x0, x1, 0.15, H, z0, z1, C.train, C.trainSide, C.trainTop);
     // roof walkway line
     const zr = Math.max(z0, NEAR);
-    poly([proj(x - 0.08, TRAIN_H + 0.001, zr), proj(x + 0.08, TRAIN_H + 0.001, zr), proj(x + 0.08, TRAIN_H + 0.001, z1), proj(x - 0.08, TRAIN_H + 0.001, z1)], col(C.stripe, t, 0.8));
+    poly([proj(x - 0.08, H + 0.001, zr), proj(x + 0.08, H + 0.001, zr), proj(x + 0.08, H + 0.001, z1), proj(x - 0.08, H + 0.001, z1)], col(C.stripe, t, 0.8));
     // side windows and stripe
     const sx = x1 < 0 ? x1 : (x0 > 0 ? x0 : null);
     if (sx !== null) {
       const zs = Math.max(z0 + 0.4, NEAR);
       if (zs < z1 - 0.4) {
-        poly([proj(sx, 1.15, zs), proj(sx, 1.15, z1 - 0.4), proj(sx, 1.75, z1 - 0.4), proj(sx, 1.75, zs)], col(C.glass, t, 0.75));
-        poly([proj(sx, 0.7, zs), proj(sx, 0.7, z1 - 0.2), proj(sx, 0.85, z1 - 0.2), proj(sx, 0.85, zs)], col(C.stripe, t));
+        poly([proj(sx, 1.15 * k, zs), proj(sx, 1.15 * k, z1 - 0.4), proj(sx, 1.75 * k, z1 - 0.4), proj(sx, 1.75 * k, zs)], col(C.glass, t, 0.75));
+        poly([proj(sx, 0.7 * k, zs), proj(sx, 0.7 * k, z1 - 0.2), proj(sx, 0.85 * k, z1 - 0.2), proj(sx, 0.85 * k, zs)], col(C.stripe, t));
       }
     }
     if (z0 >= NEAR) {
-      poly([proj(x0 + 0.2, 1.15, z0), proj(x1 - 0.2, 1.15, z0), proj(x1 - 0.2, 1.8, z0), proj(x0 + 0.2, 1.8, z0)], col(C.glass, t, 0.85));
-      poly([proj(x0, 0.7, z0), proj(x1, 0.7, z0), proj(x1, 0.85, z0), proj(x0, 0.85, z0)], col(C.stripe, t));
+      poly([proj(x0 + 0.2, 1.15 * k, z0), proj(x1 - 0.2, 1.15 * k, z0), proj(x1 - 0.2, 1.8 * k, z0), proj(x0 + 0.2, 1.8 * k, z0)], col(C.glass, t, 0.85));
+      poly([proj(x0, 0.7 * k, z0), proj(x1, 0.7 * k, z0), proj(x1, 0.85 * k, z0), proj(x0, 0.85 * k, z0)], col(C.stripe, t));
+      // moving trains flash their headlights
+      const flash = o.vz ? 0.6 + 0.4 * Math.sin(G.t * 14) : 1;
       for (const lx of [x0 + 0.35, x1 - 0.35]) {
         const p = proj(lx, 0.45, z0);
-        ctx.fillStyle = `rgba(255,250,220,${1 - t})`;
+        ctx.fillStyle = `rgba(255,250,220,${(1 - t) * flash})`;
         ctx.beginPath(); ctx.arc(p.x, p.y, 0.14 * p.s, 0, Math.PI * 2); ctx.fill();
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 0.8 * p.s);
         g.addColorStop(0, `rgba(255,240,200,${0.4 * (1 - t)})`); g.addColorStop(1, 'rgba(255,240,200,0)');
@@ -882,14 +974,23 @@
     if (!back) {
       ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.beginPath(); ctx.ellipse(cx, cy + ry * 0.35, rx * 0.55, ry * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-      for (const ex of [-1, 1]) {
+      if (o.faint) {
+        ctx.strokeStyle = '#1a1f30'; ctx.lineWidth = Math.max(1, h * 0.035); ctx.lineCap = 'round';
+        for (const ex of [-1, 1]) {
+          const ex0 = cx + ex * rx * 0.33, ey0 = cy - ry * 0.1, d = rx * 0.12;
+          ctx.beginPath(); ctx.moveTo(ex0 - d, ey0 - d); ctx.lineTo(ex0 + d, ey0 + d); ctx.moveTo(ex0 + d, ey0 - d); ctx.lineTo(ex0 - d, ey0 + d); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.ellipse(cx, cy + ry * 0.3, rx * 0.12, ry * 0.08, 0, 0, Math.PI * 2); ctx.stroke();
+      } else for (const ex of [-1, 1]) {
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(cx + ex * rx * 0.33, cy - ry * 0.1, rx * 0.17, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#1a1f30';
         ctx.beginPath(); ctx.arc(cx + ex * rx * 0.33, cy - ry * 0.05, rx * 0.09, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.strokeStyle = '#1a1f30'; ctx.lineWidth = Math.max(1, h * 0.03);
-      ctx.beginPath(); ctx.arc(cx, cy + ry * 0.2, rx * 0.18, 0.2, Math.PI - 0.2); ctx.stroke();
+      if (!o.faint) {
+        ctx.strokeStyle = '#1a1f30'; ctx.lineWidth = Math.max(1, h * 0.03);
+        ctx.beginPath(); ctx.arc(cx, cy + ry * 0.2, rx * 0.18, 0.2, Math.PI - 0.2); ctx.stroke();
+      }
     } else {
       ctx.fillStyle = shadeHex(colour, 0.6);
       roundRect(cx - rx * 0.35, cy - ry * 0.2, rx * 0.7, ry * 0.75, rx * 0.15);
@@ -917,8 +1018,38 @@
     ctx.beginPath(); ctx.ellipse(p.x, p.y, w * p.s, w * 0.3 * p.s, 0, 0, Math.PI * 2); ctx.fill();
   }
 
+  function drawFainted() {
+    const sup = supportHeight();
+    const p = proj(G.px, sup, 0);
+    const h = 1.5 * p.s;
+    const k = Math.min(1, (performance.now() - (G.faintAt || 0)) / 350); // tip-over animation
+    shadow(G.px, sup, 0, 0.7);
+    ctx.save();
+    ctx.translate(p.x - h * 0.45 * k, p.y);
+    ctx.rotate(-Math.PI / 2 * 0.92 * k);
+    drawCreature(0, 0, h, '#ffb547', 0, { cap: true, faint: true });
+    ctx.restore();
+    // dizzy stars circling over its head
+    const t = performance.now() / 1000;
+    for (let i = 0; i < 3; i++) {
+      const a = t * 3 + i * (Math.PI * 2 / 3);
+      const sx = p.x - h * 0.85 + Math.cos(a) * h * 0.35, sy = p.y - h * 0.55 + Math.sin(a) * h * 0.1;
+      star(sx, sy, h * 0.08 * k);
+    }
+  }
+  function star(x, y, r) {
+    if (r <= 0) return;
+    ctx.fillStyle = '#ffe066';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? r * 0.45 : r, a = -Math.PI / 2 + i * Math.PI / 5;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+
   function drawPlayer() {
-    if (state === 'over') return;
+    if (state === 'over') { drawFainted(); return; }
     if (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0) return;
     const rolling = G.rollT > 0 && G.grounded;
     const sup = supportHeight();
@@ -1036,7 +1167,7 @@
   requestAnimationFrame(frame);
 
   // test hook (harmless in normal play)
-  window.__sm = { get G() { return G; }, act, buyBoard, startGame, get state() { return state; } };
+  window.__sm = { music, get G() { return G; }, act, buyBoard, startGame, get state() { return state; } };
 })();
 </script>
 </body>
