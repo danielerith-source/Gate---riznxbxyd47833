@@ -206,25 +206,27 @@ function makeLevel(lv) {
       if (lv >= 15) objs.push({ t: 'saw', z: z0 + 10, x: 0, r: 1.2, amp: 3, ph: r() * 6, sp: R(1.5, 2.5), rot: 0, cx: 0 });
     },
     laser(z0) {
-      const gap = Math.max(2.2, 4.4 - lv * 0.08);
+      const gap = Math.max(3.0, 5.0 - lv * 0.06);
       objs.push({ t: 'laser', z: z0, gap, amp: lv < 4 ? 0 : Math.min(ROAD - gap / 2 - 0.3, 1 + lv * 0.12), base: lv < 4 ? R(-2, 2) : 0, sp: R(1.0, 1.6) + lv * 0.03, ph: r() * 6, cx: 0 });
       if (lv >= 12) objs.push({ t: 'laser', z: z0 + 4, gap, amp: Math.min(ROAD - gap / 2 - 0.3, 1 + lv * 0.12), base: 0, sp: R(1.0, 1.6) + lv * 0.03, ph: r() * 6, cx: 0 });
     },
     spin(z0) {
       const two = lv >= 14 && r() < 0.5;
-      const sp = (1.3 + Math.min(1.4, lv * 0.05)) * (r() < 0.5 ? -1 : 1);
+      const sp = (1.0 + Math.min(1.2, lv * 0.04)) * (r() < 0.5 ? -1 : 1);
       if (two) {
-        objs.push({ t: 'spin', z: z0, x: -2.5, len: 2.4, ang: r() * 6, sp });
-        objs.push({ t: 'spin', z: z0, x: 2.5, len: 2.4, ang: r() * 6, sp: -sp });
+        objs.push({ t: 'spin', z: z0, x: -2.6, len: 1.9, ang: r() * 6, sp });
+        objs.push({ t: 'spin', z: z0, x: 2.6, len: 1.9, ang: r() * 6, sp: -sp });
       } else {
-        objs.push({ t: 'spin', z: z0, x: R(-1, 1), len: Math.min(4.6, 3.4 + lv * 0.06), ang: r() * 6, sp });
+        // arm leaves a safe lane down at least one side of the road
+        objs.push({ t: 'spin', z: z0, x: R(-0.6, 0.6), len: Math.min(3.2, 2.6 + lv * 0.03), ang: r() * 6, sp });
       }
     },
     spikes(z0) {
-      const per = Math.max(1.1, 1.9 - lv * 0.03);
+      const per = Math.max(1.2, 2.4 - lv * 0.05);
+      const upFrom = lv < 6 ? 0.62 : 0.55; // spikes stay up for less of the time on early levels
       const lanes = lv < 6 ? [[-ROAD, 0], [0, ROAD]] : [[-ROAD, -1.67], [-1.67, 1.67], [1.67, ROAD]];
       const d = Math.min(4, 2.4 + lv * 0.06);
-      lanes.forEach((ln, k) => objs.push({ t: 'spikes', z: z0, x0: ln[0], x1: ln[1], d, per, ph: k * per / lanes.length }));
+      lanes.forEach((ln, k) => objs.push({ t: 'spikes', z: z0, x0: ln[0], x1: ln[1], d, per, upFrom, ph: k * per / lanes.length }));
     }
   };
   const pool = ['arrows', 'saw', 'spikes'];
@@ -290,7 +292,7 @@ function makeLevel(lv) {
 let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
-let lossAcc = 0, lossTimer = 0;
+let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [];
 // Puppy coats [body, ears]
 const COATS = [['#f2c38f', '#a8682f'], ['#ffffff', '#c9a27a'], ['#3a3a3a', '#1e1e1e'], ['#a0522d', '#5e2f14'], ['#e8d5b5', '#8a6a48'], ['#c98a4b', '#6b3518'], ['#d9d9d9', '#555555']];
 
@@ -298,7 +300,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0;
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = [];
   syncMembers();
   camZ = player.z - CAM_BACK;
   state = 'run';
@@ -308,7 +310,7 @@ function startLevel(lv) {
 }
 
 function formation(m) {
-  const out = [], k = 0.34, Rr = k * Math.sqrt(m);
+  const out = [], k = 0.27, Rr = k * Math.sqrt(m);
   for (let i = 0; i < m; i++) {
     const rr = k * Math.sqrt(i + 0.5), th = i * 2.39996;
     out.push({ ox: rr * Math.cos(th), oz: -(0.8 + Rr * 0.9) + rr * Math.sin(th) * 0.9 });
@@ -479,7 +481,7 @@ function updateRun(dt) {
     if (Math.abs(o.z - player.z) > 14) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 - 0.1) killMember(i);
+      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 + 0.1) killMember(i);
     }
   }
   // Spinning lasers: a beam turning round a post
@@ -497,8 +499,9 @@ function updateRun(dt) {
   for (const o of objs) {
     if (o.t !== 'spikes') continue;
     const f = (((time + o.ph) % o.per) + o.per) % o.per / o.per;
-    o.up = o.always || f > 0.5;
-    o.warn = !o.always && f > 0.32 && f <= 0.5;
+    const uf = o.upFrom || 0.5;
+    o.up = o.always || f > uf;
+    o.warn = !o.always && f > uf - 0.18 && f <= uf;
     if (!o.up || Math.abs(o.z - player.z) > 16) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
@@ -506,10 +509,22 @@ function updateRun(dt) {
     }
   }
 
+  // Puppies squeeze in close behind the hot dog when lasers or spikes are coming
+  const laserNear = objs.some(o => (o.t === 'laser' || o.t === 'spikes' || o.t === 'spin') && o.z - player.z > -6 && o.z - player.z < 9);
+  squeeze += ((laserNear ? 0.4 : 1) - squeeze) * Math.min(1, dt * 6);
+
+  // Remember where the hot dog has been, so the puppies follow his path
+  trail.push({ z: player.z, x: player.x });
+  while (trail.length > 2 && trail[0].z < player.z - 8) trail.shift();
+  const pathX = zz => {
+    for (let k = trail.length - 1; k >= 0; k--) if (trail[k].z <= zz) return trail[k].x;
+    return trail.length ? trail[0].x : player.x;
+  };
+
   // Crowd follows the dog
   for (let i = 0; i < members.length; i++) {
     const m = members[i], f = form[i];
-    const tx = clamp(player.x + f.ox, -ROAD + 0.25, ROAD - 0.25);
+    const tx = clamp(pathX(player.z + m.oz) + f.ox * squeeze, -ROAD + 0.25, ROAD - 0.25);
     m.x += (tx - m.x) * Math.min(1, dt * 8);
     m.oz += (f.oz - m.oz) * Math.min(1, dt * 8);
   }
