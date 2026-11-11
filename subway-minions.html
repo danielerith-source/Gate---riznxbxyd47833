@@ -78,6 +78,56 @@
   }
   .card button.play:active { transform: translateY(1px); }
   .new-best { color: var(--accent); font-weight: 800; margin-top: 10px; }
+  .card button.secondary {
+    margin-top: 12px; padding: 12px 30px; font-size: 16px; font-weight: 800; border-radius: 999px;
+    background: transparent; color: var(--text); border: 2px solid rgba(255,255,255,0.3); cursor: pointer;
+  }
+  .btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .btn-row button { margin-top: 18px !important; }
+  .wallet { margin-top: 12px; color: var(--muted); font-size: 15px; }
+  .wallet b { color: var(--accent); font-size: 20px; }
+  .loadout { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+  .slot {
+    flex: 1; max-width: 170px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 16px; padding: 10px 8px; color: var(--text); cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  }
+  .slot:active { transform: scale(0.97); }
+  .slot canvas { width: 110px; height: 110px; }
+  .slot span { font-weight: 800; font-size: 15px; margin-top: 4px; }
+  .slot small { color: var(--accent); font-size: 12px; margin-top: 2px; }
+  details.howto { margin-top: 16px; text-align: left; color: var(--muted); font-size: 14px; }
+  details.howto summary { cursor: pointer; text-align: center; font-weight: 700; }
+  .shop { max-width: 520px; height: 100%; max-height: 720px; display: flex; flex-direction: column; padding: 18px 14px; }
+  .shop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .shop-head h2 { margin: 0; font-size: 22px; }
+  .shop-head button { background: none; border: none; color: var(--text); font-size: 15px; font-weight: 800; cursor: pointer; padding: 6px; }
+  .shop-head .wallet { margin: 0; }
+  .tabs { display: flex; gap: 8px; margin-top: 12px; }
+  .tabs button {
+    flex: 1; padding: 10px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.15);
+    background: transparent; color: var(--muted); font-weight: 800; font-size: 14px; cursor: pointer;
+  }
+  .tabs button.on { background: var(--accent); color: #2a2000; border-color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-top: 12px; overflow-y: auto; flex: 1; padding: 2px; touch-action: pan-y; }
+  .item {
+    background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 14px;
+    padding: 8px 6px 10px; color: var(--text); cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  }
+  .item canvas { width: 86px; height: 86px; }
+  .item .name { font-weight: 800; font-size: 14px; margin-top: 2px; }
+  .item .price { font-size: 14px; font-weight: 800; color: var(--accent); margin-top: 4px; }
+  .item .price.owned { color: var(--muted); font-weight: 600; }
+  .item.selected { border-color: var(--accent); box-shadow: 0 0 14px rgba(255,210,63,0.35); }
+  .item.selected .price { color: var(--accent); }
+  .item.locked canvas { opacity: 0.55; }
+  .item.locked .price { color: var(--muted); }
+  .item .stats-mini { width: 100%; font-size: 11px; color: var(--muted); margin-top: 6px; text-align: left; padding: 0 6px; }
+  .item .stats-mini div { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .item .stats-mini i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; display: block; }
+  .item .stats-mini i b { display: block; height: 100%; background: var(--accent); }
+  .item.shake { animation: shake 0.35s; }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  #shopMsg { min-height: 22px; margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -97,7 +147,7 @@
   </div>
 </div>
 
-<button id="buyBtn">🍌 Buy board (10)</button>
+<button id="buyBtn">🍌 Ride board (10)</button>
 
 <div id="buttons">
   <button id="muteBtn" aria-label="Toggle sound">🔊</button>
@@ -107,24 +157,51 @@
 <div class="overlay" id="menu">
   <div class="card">
     <h1>SUBWAY<br><em>MINIONS</em></h1>
-    <p>Run your minion through the subway. Grab bananas, climb onto the trains and hop from roof to roof. Crash and your minion faints, unless a banana board saves you.</p>
-    <ul>
-      <li><b>Swipe left / right</b> (or ← →): change track</li>
-      <li><b>Swipe up</b> (or ↑ / Space): jump hurdles and onto trains</li>
-      <li><b>Swipe down</b> (or ↓): roll under bars</li>
-      <li><b>Dodge</b> the posts and the fronts of trains</li>
-      <li><b>Big red trains</b> move towards you and are too tall to climb. Only a banana board can jump you onto them</li>
-      <li><b>10 🍌 = 1 banana board</b> (button or B): you float, jump higher, and it's an extra life. Crash and the board disappears but you keep going</li>
-      <li><b>P / Esc</b>: pause · <b>🔊</b>: music and sound on/off</li>
-    </ul>
+    <div class="wallet">🍌 <b id="walletHome">0</b> &nbsp;·&nbsp; best <b id="bestHome">0</b></div>
+    <div class="loadout">
+      <button class="slot" id="charSlot"><canvas id="charPreview"></canvas><span id="charName">Pip</span><small>Tap to change</small></button>
+      <button class="slot" id="boardSlot"><canvas id="boardPreview"></canvas><span id="boardName">Board</span><small>Tap to change</small></button>
+    </div>
     <button class="play" id="startBtn">Play</button>
+    <details class="howto">
+      <summary>How to play</summary>
+      <ul>
+        <li><b>Swipe left / right</b> (or ← →): change track</li>
+        <li><b>Swipe up</b> (or ↑ / Space): jump hurdles and onto trains</li>
+        <li><b>Swipe down</b> (or ↓): roll under bars</li>
+        <li><b>Dodge</b> the posts and the fronts of trains</li>
+        <li><b>Big red trains</b> move towards you and are too tall to climb. Only a board can jump you onto them</li>
+        <li><b>10 🍌 = ride your board</b> (button or B): you float, jump higher, go faster, and it's an extra life</li>
+        <li><b>Your bananas are saved.</b> Spend them here on new characters and better boards</li>
+        <li><b>P / Esc</b>: pause · <b>🔊</b>: music and sound on/off</li>
+      </ul>
+    </details>
+  </div>
+</div>
+
+<div class="overlay hidden" id="shop">
+  <div class="card shop">
+    <div class="shop-head">
+      <button id="shopBack">← Home</button>
+      <h2 id="shopTitle">Shop</h2>
+      <div class="wallet">🍌 <b id="walletShop">0</b></div>
+    </div>
+    <div class="tabs">
+      <button data-tab="chars" id="tabChars">Characters</button>
+      <button data-tab="boards" id="tabBoards">Boards</button>
+    </div>
+    <div class="grid" id="shopGrid"></div>
+    <div id="shopMsg"></div>
   </div>
 </div>
 
 <div class="overlay hidden" id="pauseMenu">
   <div class="card">
     <h2>Paused</h2>
-    <button class="play" id="resumeBtn">Resume</button>
+    <div class="btn-row">
+      <button class="play" id="resumeBtn">Resume</button>
+      <button class="secondary" id="pauseHomeBtn">Home</button>
+    </div>
   </div>
 </div>
 
@@ -137,7 +214,11 @@
       <div><b id="finalBest">0</b>best</div>
     </div>
     <div class="new-best" id="newBest" hidden>New best run!</div>
-    <button class="play" id="againBtn">Run again</button>
+    <div class="wallet">Banana bank: 🍌 <b id="finalWallet">0</b></div>
+    <div class="btn-row">
+      <button class="play" id="againBtn">Run again</button>
+      <button class="secondary" id="homeBtn">Home</button>
+    </div>
   </div>
 </div>
 
@@ -147,7 +228,7 @@
 
   // ---------- Setup ----------
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  let ctx = canvas.getContext('2d');
   let W = 0, H = 0, DPR = 1, F = 1, HORIZON = 0;
 
   const LANE_W = 2.2;
@@ -158,6 +239,36 @@
   const TRAIN_H = 2.0, BIG_TRAIN_H = 3.2, RAMP_LEN = 4;
   const STEP = 0.45;           // how far below a roof you can be and still land on it
   const BOARD_COST = 10, BOARD_LIFT = 0.25;
+
+  // ---------- Shop catalogue ----------
+  const CHARACTERS = [
+    { id: 'pip',   name: 'Pip',   colour: '#ffb547', hat: 'cap',        price: 0 },
+    { id: 'mint',  name: 'Mint',  colour: '#4fd1c5', hat: 'beanie',     price: 50 },
+    { id: 'berry', name: 'Berry', colour: '#ef7a85', hat: 'bow',        price: 120 },
+    { id: 'lime',  name: 'Lime',  colour: '#9ccc65', hat: 'headphones', price: 250 },
+    { id: 'sky',   name: 'Sky',   colour: '#4fc3f7', hat: 'propeller',  price: 400 },
+    { id: 'plum',  name: 'Plum',  colour: '#b39ddb', hat: 'crown',      price: 600 },
+    { id: 'coco',  name: 'Coco',  colour: '#a1887f', hat: 'tophat',     price: 900 },
+    { id: 'zap',   name: 'Zap',   colour: '#ffe14d', hat: 'party',      price: 1500 },
+  ];
+  const BOARDS = [
+    { id: 'banana', name: 'Banana Board', colour: '#ffd633', edge: '#b8860b', jump: 13.5, boost: 0.00, price: 0 },
+    { id: 'ripe',   name: 'Ripe Rider',   colour: '#ffb300', edge: '#8d5a00', jump: 14.3, boost: 0.08, price: 80 },
+    { id: 'green',  name: 'Green Zoomer', colour: '#9ccc65', edge: '#4b7a1e', jump: 15.0, boost: 0.15, price: 200 },
+    { id: 'split',  name: 'Banana Split', colour: '#f8bbd0', edge: '#ad5a78', jump: 15.8, boost: 0.22, price: 400 },
+    { id: 'gold',   name: 'Golden Peel',  colour: '#ffe066', edge: '#c99a00', jump: 16.6, boost: 0.30, price: 750 },
+    { id: 'rocket', name: 'Rocket Bunch', colour: '#ff7043', edge: '#9c2f12', jump: 17.4, boost: 0.40, price: 1200 },
+  ];
+
+  // ---------- Saved progress (bananas are kept between runs) ----------
+  const SAVE_KEY = 'sm_save_v1';
+  const save = { bananas: 0, best: 0, chars: ['pip'], boards: ['banana'], char: 'pip', board: 'banana' };
+  try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
+  try { save.best = Math.max(save.best, parseInt(localStorage.getItem('sm_best') || '0', 10) || 0); } catch (e) {}
+  function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+  const curChar = () => CHARACTERS.find((c) => c.id === save.char) || CHARACTERS[0];
+  const curBoard = () => BOARDS.find((b) => b.id === save.board) || BOARDS[0];
+  window.addEventListener('pagehide', persist);
   let camLift = 0;
 
   function resize() {
@@ -315,8 +426,7 @@
   })();
 
   // ---------- State ----------
-  let best = 0;
-  try { best = parseInt(localStorage.getItem('sm_best') || '0', 10) || 0; } catch (e) {}
+  let best = save.best;
 
   let state = 'menu';
   let G = null;
@@ -324,7 +434,7 @@
   function newGame() {
     G = {
       t: 0, dist: 0, speed: 14, score: 0,
-      bananas: 0, totalBananas: 0,
+      totalBananas: 0, charDef: curChar(), boardDef: curBoard(),
       lane: 1, px: 0, py: 0, vy: 0, rollT: 0, grounded: true,
       crew: [],
       invuln: 0, magnet: 0, board: 0, shake: 0, flash: 0,
@@ -412,15 +522,16 @@
     if (a === 'left' && G.lane > 0) { G.lane--; sfx.lane(); }
     else if (a === 'right' && G.lane < 2) { G.lane++; sfx.lane(); }
     else if (a === 'up' && G.grounded) {
-      G.vy = G.board > 0 ? 13.5 : 10.5; G.rollT = 0; G.grounded = false; sfx.jump();
+      G.vy = G.board > 0 ? G.boardDef.jump : 10.5; G.rollT = 0; G.grounded = false; sfx.jump();
     } else if (a === 'down') {
       if (!G.grounded) G.vy = -18;
       G.rollT = 0.65; sfx.roll();
     }
   }
   function buyBoard() {
-    if (state !== 'play' || G.board > 0 || G.bananas < BOARD_COST) return;
-    G.bananas -= BOARD_COST;
+    if (state !== 'play' || G.board > 0 || save.bananas < BOARD_COST) return;
+    save.bananas -= BOARD_COST;
+    persist();
     G.board = 1;   // an extra life: lasts until you crash
     sfx.board();
     burst(G.px, G.py + 0.3, 0, '#ffd23f', 16);
@@ -429,7 +540,7 @@
     const k = e.key;
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(k)) e.preventDefault();
     if (state === 'menu' || state === 'over') {
-      if (k === 'Enter' || k === ' ') startGame();
+      if ((k === 'Enter' || k === ' ') && ui.shop.classList.contains('hidden')) startGame();
       return;
     }
     if (k === 'p' || k === 'P' || k === 'Escape') { togglePause(); return; }
@@ -465,12 +576,19 @@
   // ---------- UI ----------
   const $ = (id) => document.getElementById(id);
   const ui = {
-    menu: $('menu'), pause: $('pauseMenu'), over: $('overMenu'),
+    menu: $('menu'), pause: $('pauseMenu'), over: $('overMenu'), shop: $('shop'),
     score: $('score'), bananas: $('bananas'), bestHud: $('bestHud'), mult: $('mult'), crew: $('crew'),
     magnetBar: $('magnetBar'), boardBar: $('boardBar'), buy: $('buyBtn'),
   };
   $('startBtn').onclick = startGame;
   $('againBtn').onclick = startGame;
+  $('homeBtn').onclick = goHome;
+  $('pauseHomeBtn').onclick = goHome;
+  $('charSlot').onclick = () => openShop('chars');
+  $('boardSlot').onclick = () => openShop('boards');
+  $('shopBack').onclick = closeShop;
+  $('tabChars').onclick = () => openShop('chars');
+  $('tabBoards').onclick = () => openShop('boards');
   $('resumeBtn').onclick = togglePause;
   $('pauseBtn').onclick = togglePause;
   ui.buy.onclick = buyBoard;
@@ -489,13 +607,13 @@
     state = 'play';
     clearTimeout(overTimer);
     music.start();
-    ui.menu.classList.add('hidden'); ui.over.classList.add('hidden'); ui.pause.classList.add('hidden');
+    ui.menu.classList.add('hidden'); ui.over.classList.add('hidden'); ui.pause.classList.add('hidden'); ui.shop.classList.add('hidden');
     ui.buy.style.display = 'block';
     renderCrewHud();
     last = performance.now();
   }
   function togglePause() {
-    if (state === 'play') { state = 'pause'; ui.pause.classList.remove('hidden'); music.stop(); }
+    if (state === 'play') { state = 'pause'; ui.pause.classList.remove('hidden'); music.stop(); persist(); }
     else if (state === 'pause') { state = 'play'; ui.pause.classList.add('hidden'); last = performance.now(); music.start(); }
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
@@ -508,7 +626,9 @@
     ui.buy.style.display = 'none';
     const s = Math.floor(G.score);
     const isBest = s > best;
-    if (isBest) { best = s; try { localStorage.setItem('sm_best', String(best)); } catch (e) {} }
+    if (isBest) { best = s; save.best = s; }
+    persist();
+    $('finalWallet').textContent = save.bananas;
     $('finalScore').textContent = s;
     $('finalBananas').textContent = G.totalBananas;
     $('finalBest').textContent = best;
@@ -516,6 +636,104 @@
     ui.bestHud.textContent = best;
     overTimer = setTimeout(() => ui.over.classList.remove('hidden'), 1400);
   }
+  // ---------- Home screen and shop ----------
+  function drawOn(cv, cssW, cssH, fn) {
+    const d = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = cssW * d; cv.height = cssH * d;
+    const saved = ctx;
+    ctx = cv.getContext('2d');
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    try { fn(cssW, cssH); } finally { ctx = saved; }
+  }
+  function previewChar(cv, c, size) {
+    drawOn(cv, size, size, (w, h) => drawCreature(w / 2, h * 0.92, h * 0.6, c.colour, 0, { hat: c.hat }));
+  }
+  function previewBoard(cv, b, size) {
+    drawOn(cv, size, size, (w, h) => drawBoardShape(w / 2, h * 0.5, w * 0.82, h * 0.15, b));
+  }
+  function refreshHome() {
+    $('walletHome').textContent = save.bananas;
+    $('bestHome').textContent = best;
+    $('charName').textContent = curChar().name;
+    $('boardName').textContent = curBoard().name;
+    previewChar($('charPreview'), curChar(), 110);
+    previewBoard($('boardPreview'), curBoard(), 110);
+    G.charDef = curChar(); G.boardDef = curBoard();
+  }
+  function goHome() {
+    clearTimeout(overTimer);
+    music.stop();
+    persist();
+    state = 'menu';
+    newGame();
+    ui.over.classList.add('hidden'); ui.pause.classList.add('hidden'); ui.shop.classList.add('hidden');
+    ui.menu.classList.remove('hidden');
+    ui.buy.style.display = 'none';
+    refreshHome();
+  }
+  let shopTab = 'chars';
+  function openShop(tab) {
+    shopTab = tab;
+    ui.menu.classList.add('hidden');
+    ui.shop.classList.remove('hidden');
+    $('shopMsg').textContent = '';
+    renderShop();
+  }
+  function closeShop() {
+    ui.shop.classList.add('hidden');
+    ui.menu.classList.remove('hidden');
+    refreshHome();
+  }
+  function renderShop() {
+    const chars = shopTab === 'chars';
+    $('shopTitle').textContent = chars ? 'Characters' : 'Boards';
+    $('tabChars').classList.toggle('on', chars);
+    $('tabBoards').classList.toggle('on', !chars);
+    $('walletShop').textContent = save.bananas;
+    const list = chars ? CHARACTERS : BOARDS;
+    const owned = chars ? save.chars : save.boards;
+    const selected = chars ? save.char : save.board;
+    const grid = $('shopGrid');
+    grid.innerHTML = '';
+    for (const it of list) {
+      const has = owned.includes(it.id);
+      const el = document.createElement('button');
+      el.className = 'item' + (it.id === selected ? ' selected' : '') + (!has && save.bananas < it.price ? ' locked' : '');
+      const priceHtml = it.id === selected ? '✓ Selected' : has ? 'Owned · tap to use' : `🍌 ${it.price}`;
+      el.innerHTML = `<canvas></canvas><div class="name">${it.name}</div>` +
+        (chars ? '' : `<div class="stats-mini"><div>Jump <i><b style="width:${Math.round((it.jump - 12.5) / 5 * 100)}%"></b></i></div><div>Speed <i><b style="width:${Math.round(10 + it.boost / 0.4 * 90)}%"></b></i></div></div>`) +
+        `<div class="price${has ? ' owned' : ''}">${priceHtml}</div>`;
+      const cv = el.querySelector('canvas');
+      if (chars) previewChar(cv, it, 86); else previewBoard(cv, it, 86);
+      el.onclick = () => shopTap(it, el);
+      grid.appendChild(el);
+    }
+  }
+  function shopTap(it, el) {
+    const chars = shopTab === 'chars';
+    const owned = chars ? save.chars : save.boards;
+    const msg = $('shopMsg');
+    if (!owned.includes(it.id)) {
+      if (save.bananas < it.price) {
+        msg.textContent = `You need ${it.price - save.bananas} more bananas for ${it.name}.`;
+        el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+        sfx.lane();
+        return;
+      }
+      save.bananas -= it.price;
+      owned.push(it.id);
+      msg.textContent = `You bought ${it.name}!`;
+      sfx.board();
+    } else {
+      msg.textContent = `${it.name} selected.`;
+      sfx.lane();
+    }
+    if (chars) save.char = it.id; else save.board = it.id;
+    persist();
+    renderShop();
+  }
+
   function renderCrewHud() {
     ui.crew.innerHTML = G.crew.map((c) => `<span style="background:${c}"></span>`).join('');
   }
@@ -569,7 +787,7 @@
   function update(dt) {
     G.t += dt;
     G.speed = Math.min(32, 14 + G.t * 0.22);
-    const dz = G.speed * dt;
+    const dz = G.speed * (G.board > 0 ? 1 + G.boardDef.boost : 1) * dt;
     G.dist += dz;
     G.score += dz * multiplier() * 0.5;
 
@@ -634,7 +852,7 @@
         case 'post': hit(); o.dead = true; break;
         case 'banana':
           if (pTop > o.y - 0.45 && pBottom < o.y + 0.45) {
-            o.dead = true; G.bananas++; G.totalBananas++; G.score += 10 * multiplier(); sfx.banana();
+            o.dead = true; save.bananas++; G.totalBananas++; G.score += 10 * multiplier(); sfx.banana();
           }
           break;
         case 'stray':
@@ -660,16 +878,16 @@
 
   function updateHud() {
     ui.score.textContent = Math.floor(G.score);
-    ui.bananas.textContent = G.bananas;
+    ui.bananas.textContent = save.bananas;
     ui.mult.textContent = multiplier().toFixed(2).replace(/0$/, '');
     for (const [bar, v, max] of [[ui.magnetBar, G.magnet, 8]]) {
       if (v > 0) { bar.style.display = 'block'; bar.firstElementChild.style.width = (v / max * 100) + '%'; }
       else bar.style.display = 'none';
     }
-    const canBuy = G.board <= 0 && G.bananas >= BOARD_COST;
+    const canBuy = G.board <= 0 && save.bananas >= BOARD_COST;
     ui.buy.disabled = !canBuy;
     ui.buy.classList.toggle('ready', canBuy);
-    ui.buy.textContent = G.board > 0 ? '🍌 Extra life on board' : `🍌 Buy board (${BOARD_COST})`;
+    ui.buy.textContent = G.board > 0 ? '🍌 Extra life on board' : `🍌 Ride board (${BOARD_COST})`;
   }
 
   // ---------- Rendering ----------
@@ -878,24 +1096,45 @@
     ctx.restore();
   }
 
-  // The banana board, seen from behind, floating under the player
+  // A banana-shaped board centred on (cx, cy)
+  function drawBoardShape(cx, cy, len, th, def) {
+    const c = hex(def.colour);
+    const g = ctx.createRadialGradient(cx, cy + th, 0, cx, cy + th, len * 0.7);
+    g.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},0.45)`); g.addColorStop(1, `rgba(${c[0]},${c[1]},${c[2]},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(cx, cy + th, len * 0.7, len * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - len / 2, cy - th * 0.9);
+    ctx.quadraticCurveTo(cx, cy + th * 1.9, cx + len / 2, cy - th * 0.9);
+    ctx.quadraticCurveTo(cx, cy + th * 0.4, cx - len / 2, cy - th * 0.9);
+    ctx.closePath();
+    ctx.fillStyle = def.colour; ctx.fill();
+    ctx.strokeStyle = def.edge; ctx.lineWidth = Math.max(1, th * 0.18); ctx.stroke();
+    // speed stripes on the faster boards
+    if (def.boost > 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, th * 0.12); ctx.lineCap = 'round';
+      const n = Math.round(def.boost / 0.1);
+      for (let i = 0; i < n; i++) {
+        const x = cx - len * 0.22 + i * len * 0.11;
+        ctx.beginPath(); ctx.moveTo(x, cy + th * 0.55); ctx.lineTo(x + len * 0.05, cy + th * 0.3); ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#5a3c14';
+    ctx.beginPath(); ctx.arc(cx - len / 2, cy - th * 0.9, th * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + len / 2, cy - th * 0.9, th * 0.22, 0, Math.PI * 2); ctx.fill();
+    if (def.id === 'rocket') {   // little flames out of the back
+      const f = 0.7 + 0.3 * Math.sin(performance.now() / 50);
+      ctx.fillStyle = 'rgba(255,170,60,0.85)';
+      for (const sx of [-0.25, 0.25]) {
+        ctx.beginPath(); ctx.moveTo(cx + sx * len - th * 0.3, cy + th * 0.5);
+        ctx.lineTo(cx + sx * len, cy + th * (0.5 + 1.4 * f)); ctx.lineTo(cx + sx * len + th * 0.3, cy + th * 0.5); ctx.fill();
+      }
+    }
+  }
+  // The board, seen from behind, floating under the player
   function drawBoard(x, y) {
     const p = proj(x, y + 0.08, 0);
-    const len = 1.5 * p.s, th = 0.22 * p.s;
-    const g = ctx.createRadialGradient(p.x, p.y + th, 0, p.x, p.y + th, len * 0.7);
-    g.addColorStop(0, 'rgba(255,220,80,0.45)'); g.addColorStop(1, 'rgba(255,220,80,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + th, len * 0.7, len * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(p.x - len / 2, p.y - th * 0.9);
-    ctx.quadraticCurveTo(p.x, p.y + th * 1.9, p.x + len / 2, p.y - th * 0.9);
-    ctx.quadraticCurveTo(p.x, p.y + th * 0.4, p.x - len / 2, p.y - th * 0.9);
-    ctx.closePath();
-    ctx.fillStyle = '#ffd633'; ctx.fill();
-    ctx.strokeStyle = '#b8860b'; ctx.lineWidth = Math.max(1, th * 0.18); ctx.stroke();
-    ctx.fillStyle = '#5a3c14';
-    ctx.beginPath(); ctx.arc(p.x - len / 2, p.y - th * 0.9, th * 0.28, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(p.x + len / 2, p.y - th * 0.9, th * 0.22, 0, Math.PI * 2); ctx.fill();
+    drawBoardShape(p.x, p.y, 1.5 * p.s, 0.22 * p.s, G.boardDef);
   }
 
   function drawMagnet(o) {
@@ -930,10 +1169,6 @@
       ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.35, r * 0.25, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      if (o.cap) {
-        ctx.fillStyle = '#d83a3a';
-        ctx.beginPath(); ctx.ellipse(cx, footY - r * 2, r * 0.6, r * 0.3, 0, Math.PI, 0); ctx.fill();
-      }
       return;
     }
     const back = o.back;
@@ -958,6 +1193,7 @@
     ctx.stroke();
     // antenna
     const topY = cy - ry;
+    if (!['tophat', 'beanie', 'propeller', 'party', 'crown'].includes(o.hat)) {
     const sway = Math.sin(phase * 0.5) * h * 0.05;
     ctx.strokeStyle = '#20263a'; ctx.lineWidth = Math.max(1, h * 0.03);
     ctx.beginPath(); ctx.moveTo(cx, topY + h * 0.02); ctx.quadraticCurveTo(cx + sway, topY - h * 0.12, cx + sway * 2, topY - h * 0.2); ctx.stroke();
@@ -966,6 +1202,7 @@
     bulb.addColorStop(0, 'rgba(255,230,140,0.9)'); bulb.addColorStop(1, 'rgba(255,230,140,0)');
     ctx.fillStyle = bulb; ctx.beginPath(); ctx.arc(bx, by, h * 0.16, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#fff1b8'; ctx.beginPath(); ctx.arc(bx, by, h * 0.05, 0, Math.PI * 2); ctx.fill();
+    }
     // body
     ctx.fillStyle = colour;
     ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
@@ -995,11 +1232,66 @@
       ctx.fillStyle = shadeHex(colour, 0.6);
       roundRect(cx - rx * 0.35, cy - ry * 0.2, rx * 0.7, ry * 0.75, rx * 0.15);
     }
-    if (o.cap) {
-      ctx.fillStyle = '#d83a3a';
-      ctx.beginPath(); ctx.ellipse(cx, topY + ry * 0.22, rx * 0.62, ry * 0.32, 0, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#a82424';
-      ctx.fillRect(cx - rx * 0.7, topY + ry * 0.18, rx * 1.4, ry * 0.1);
+    if (o.hat) drawHat(o.hat, cx, cy, topY, rx, ry, h);
+  }
+  function drawHat(hat, cx, cy, topY, rx, ry, h) {
+    switch (hat) {
+      case 'cap':
+        ctx.fillStyle = '#d83a3a';
+        ctx.beginPath(); ctx.ellipse(cx, topY + ry * 0.22, rx * 0.62, ry * 0.32, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#a82424';
+        ctx.fillRect(cx - rx * 0.7, topY + ry * 0.18, rx * 1.4, ry * 0.1);
+        break;
+      case 'beanie':
+        ctx.fillStyle = '#3f51b5';
+        ctx.beginPath(); ctx.ellipse(cx, topY + ry * 0.3, rx * 0.7, ry * 0.42, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#5c6bc0'; ctx.fillRect(cx - rx * 0.72, topY + ry * 0.22, rx * 1.44, ry * 0.16);
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, topY - ry * 0.12, rx * 0.13, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'bow':
+        ctx.fillStyle = '#e91e63';
+        for (const sx of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(cx + rx * 0.35, topY + ry * 0.1);
+          ctx.lineTo(cx + rx * 0.35 + sx * rx * 0.32, topY - ry * 0.12); ctx.lineTo(cx + rx * 0.35 + sx * rx * 0.32, topY + ry * 0.32); ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(cx + rx * 0.35, topY + ry * 0.1, rx * 0.08, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'headphones':
+        ctx.strokeStyle = '#263238'; ctx.lineWidth = h * 0.05;
+        ctx.beginPath(); ctx.ellipse(cx, cy - ry * 0.1, rx * 0.95, ry * 1.0, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+        ctx.fillStyle = '#ff5252';
+        for (const sx of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + sx * rx * 0.95, cy - ry * 0.1, rx * 0.16, ry * 0.26, 0, 0, Math.PI * 2); ctx.fill(); }
+        break;
+      case 'propeller': {
+        ctx.fillStyle = '#ffca28';
+        ctx.beginPath(); ctx.ellipse(cx, topY + ry * 0.25, rx * 0.55, ry * 0.32, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#e53935'; ctx.fillRect(cx - h * 0.012, topY - ry * 0.3, h * 0.024, ry * 0.3);
+        const w = Math.cos(performance.now() / 60) * rx * 0.5;
+        ctx.fillStyle = '#42a5f5';
+        ctx.beginPath(); ctx.ellipse(cx, topY - ry * 0.32, Math.abs(w) + 1, ry * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'crown':
+        ctx.fillStyle = '#ffd54f';
+        ctx.beginPath();
+        ctx.moveTo(cx - rx * 0.5, topY + ry * 0.2); ctx.lineTo(cx - rx * 0.5, topY - ry * 0.25);
+        ctx.lineTo(cx - rx * 0.25, topY); ctx.lineTo(cx, topY - ry * 0.35); ctx.lineTo(cx + rx * 0.25, topY);
+        ctx.lineTo(cx + rx * 0.5, topY - ry * 0.25); ctx.lineTo(cx + rx * 0.5, topY + ry * 0.2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(cx, topY + ry * 0.02, rx * 0.07, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'tophat':
+        ctx.fillStyle = '#212121';
+        ctx.fillRect(cx - rx * 0.7, topY + ry * 0.12, rx * 1.4, ry * 0.12);
+        ctx.fillRect(cx - rx * 0.42, topY - ry * 0.6, rx * 0.84, ry * 0.75);
+        ctx.fillStyle = '#c62828'; ctx.fillRect(cx - rx * 0.42, topY - ry * 0.05, rx * 0.84, ry * 0.12);
+        break;
+      case 'party':
+        ctx.fillStyle = '#7e57c2';
+        ctx.beginPath(); ctx.moveTo(cx - rx * 0.38, topY + ry * 0.2); ctx.lineTo(cx, topY - ry * 0.8); ctx.lineTo(cx + rx * 0.38, topY + ry * 0.2); ctx.fill();
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath(); ctx.arc(cx, topY - ry * 0.8, rx * 0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx - rx * 0.1, topY - ry * 0.15, rx * 0.06, 0, Math.PI * 2); ctx.arc(cx + rx * 0.12, topY - ry * 0.4, rx * 0.05, 0, Math.PI * 2); ctx.fill();
+        break;
     }
   }
   function roundRect(x, y, w, h, r) {
@@ -1027,7 +1319,7 @@
     ctx.save();
     ctx.translate(p.x - h * 0.45 * k, p.y);
     ctx.rotate(-Math.PI / 2 * 0.92 * k);
-    drawCreature(0, 0, h, '#ffb547', 0, { cap: true, faint: true });
+    drawCreature(0, 0, h, G.charDef.colour, 0, { hat: G.charDef.hat, faint: true });
     ctx.restore();
     // dizzy stars circling over its head
     const t = performance.now() / 1000;
@@ -1059,8 +1351,8 @@
     const p = proj(G.px, G.py + lift, 0);
     const phase = G.t * G.speed * 0.9;
     const bob = (!G.grounded || G.board > 0) ? 0 : Math.abs(Math.sin(phase)) * 0.06 * p.s;
-    drawCreature(p.x, p.y - bob, 1.5 * p.s, '#ffb547', G.board > 0 ? 0 : phase,
-      { back: true, cap: true, roll: rolling, air: !G.grounded || G.board > 0 });
+    drawCreature(p.x, p.y - bob, 1.5 * p.s, G.charDef.colour, G.board > 0 ? 0 : phase,
+      { back: true, hat: G.charDef.hat, roll: rolling, air: !G.grounded || G.board > 0 });
   }
 
   const crewZ = (i) => -0.5 - 0.45 * i;
@@ -1165,9 +1457,10 @@
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  refreshHome();
 
   // test hook (harmless in normal play)
-  window.__sm = { music, get G() { return G; }, act, buyBoard, startGame, get state() { return state; } };
+  window.__sm = { save, openShop, goHome, music, get G() { return G; }, act, buyBoard, startGame, get state() { return state; } };
 })();
 </script>
 </body>
