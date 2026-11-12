@@ -1505,8 +1505,7 @@ function drawRunScene() {
   const g = ctx.createLinearGradient(0, 0, 0, HOR);
   g.addColorStop(0, '#4fb0ff'); g.addColorStop(1, '#cdeeff');
   ctx.fillStyle = g; ctx.fillRect(-20, -20, W + 40, HOR + 21);
-  ctx.fillStyle = '#86d27a';
-  for (let i = 0; i < 6; i++) { ellipse(ctx, (i / 5) * W, HOR + 4, W * 0.16, HOR * 0.22); ctx.fill(); }
+  drawSkyScenery();
   ctx.fillStyle = '#6cc25a'; ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
 
   const near = camZ + 0.6, far = camZ + 110, T = 4;
@@ -1531,6 +1530,8 @@ function drawRunScene() {
       ctx.fillStyle = (i + k) % 2 ? '#222' : '#fff'; quad(a, b, c2, d); ctx.fill();
     }
   }
+
+  drawVerge(near, far);
 
   // Everything that stands up, far to near
   const items = [];
@@ -1656,6 +1657,59 @@ function drawRunScene() {
   if (player && level && state === 'run') drawHud(player.z / level.end);
 }
 
+// Sun, drifting clouds and two layers of rolling hills behind the road
+function drawSkyScenery() {
+  const sx = W * 0.66, sy = HOR * 0.5, sr = Math.max(14, HOR * 0.15);
+  const sg = ctx.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 2.6);
+  sg.addColorStop(0, 'rgba(255,240,170,0.9)'); sg.addColorStop(1, 'rgba(255,240,170,0)');
+  ctx.fillStyle = sg; ctx.fillRect(sx - sr * 3, sy - sr * 3, sr * 6, sr * 6);
+  ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffe680'; ctx.beginPath(); ctx.arc(sx - sr * 0.2, sy - sr * 0.2, sr * 0.6, 0, Math.PI * 2); ctx.fill();
+  // clouds drift slowly across and wrap round
+  for (let k = 0; k < 4; k++) {
+    const span = W + 240, cx = ((k * 0.31 * span + time * (6 + k * 3)) % span) - 120;
+    const cy = HOR * (0.18 + 0.17 * k), cs = Math.max(10, HOR * (0.1 + 0.025 * (k % 2)));
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    for (const [dx, dy, r] of [[-1.3, 0.25, 0.75], [-0.5, -0.2, 1], [0.5, -0.05, 0.9], [1.3, 0.3, 0.65], [0, 0.35, 0.8]]) {
+      ctx.beginPath(); ctx.arc(cx + dx * cs, cy + dy * cs, r * cs, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // far hills (misty) then near hills, with a little sideways parallax as you steer
+  const px = player ? -player.x * 3 : 0;
+  for (const [col, amp, base, freq, off, par] of [['#a8d8a0', 0.38, 0.02, 2.2, 1.3, 0.5], ['#86d27a', 0.26, 0.0, 3.1, 0.2, 1]]) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-20, HOR + 1);
+    for (let i = 0; i <= 40; i++) {
+      const x = -20 + (W + 40) * i / 40, u = (x + px * par) / W;
+      const y = HOR - HOR * base - HOR * amp * (0.55 + 0.45 * Math.sin(u * freq * Math.PI + off) * Math.sin(u * freq * 1.7 + off * 2));
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W + 20, HOR + 1); ctx.closePath(); ctx.fill();
+  }
+}
+// Grass tufts and little flowers on the verges beside the road
+function drawVerge(near, far) {
+  const STEP = 2.5, FL = ['#ff8fc7', '#ffd60a', '#ffffff', '#b388ff'];
+  for (let k = Math.floor(near / STEP); k < far / STEP; k++) {
+    for (const side of [-1, 1]) {
+      const h = Math.abs(Math.sin(k * 78.233 + side * 12.9898) * 43758.5453) % 1;
+      const x = side * (ROAD + 0.9 + h * 5.5), z = k * STEP + h * STEP;
+      const p = P(x, 0, z);
+      if (!p || p.s < 2) continue;
+      const s = p.s * 1.7;
+      if (h < 0.55) {            // tuft of grass
+        ctx.strokeStyle = '#4fa944'; ctx.lineWidth = Math.max(1, 0.05 * s); ctx.lineCap = 'round';
+        for (const d of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(p.x + d * 0.06 * s, p.y); ctx.lineTo(p.x + d * 0.14 * s, p.y - (0.22 + (d === 0) * 0.08) * s); ctx.stroke(); }
+      } else {                   // a flower
+        const col = FL[Math.floor(h * 97) % FL.length], r = 0.07 * s;
+        ctx.strokeStyle = '#4fa944'; ctx.lineWidth = Math.max(1, 0.03 * s);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y - 0.22 * s); ctx.stroke();
+        ctx.fillStyle = col;
+        for (let q = 0; q < 5; q++) { const a = q * 1.2566; ctx.beginPath(); ctx.arc(p.x + Math.cos(a) * r, p.y - 0.25 * s + Math.sin(a) * r, r * 0.8, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = '#ffb703'; ctx.beginPath(); ctx.arc(p.x, p.y - 0.25 * s, r * 0.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+}
 function drawTree(x, z, h) {
   const p = P(x, 0, z);
   if (!p) return;
