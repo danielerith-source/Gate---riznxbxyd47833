@@ -134,6 +134,7 @@
       <li>Tap <b>JUMP</b> (or press space) to hop over holes, spikes, lasers and arrows. The puppies jump too! Saws, hammers and boulders are too tall to jump, so dodge them.</li>
       <li><b>POWER LEASH</b> (the gold square): your whole pack is invincible for 5 seconds!</li>
       <li>Grab <b>dog biscuits</b> and <b>bacon</b> on the road: they make your puppies tougher, so traps miss them.</li>
+      <li>Pick up <b>lost puppies</b> waiting on the road and they join your pack!</li>
       <li>Watch out for <b>banana skins</b>! Gobble one and you'll spin round and skid. Jump over them!</li>
       <li>Cheeky <b>cats</b> throw milk on the road. Run through it and everyone slips and slides about! Steer round it or jump over.</li>
       <li>Spend your coins in the <b>Shop</b> on spare Power Leashes, biscuits and extra puppies, or dress up your hot dog in the <b>Doggie Store</b>!</li>
@@ -395,6 +396,8 @@ function makeLevel(lv) {
       anyObstacle(z);
     }
     if (i > 0 && r() < extraChance) anyObstacle(z + 11);
+    // Lost puppies waiting on the road to join your pack
+    if (i > 0 && r() < 0.32) objs.push({ t: 'stray', z: z + 18, x: R(-4, 4), n: 1 + Math.floor(r() * 3), coat: Math.floor(r() * 7), taken: false });
     // Snacks to grab on the road, sometimes in tricky spots
     // Cheeky cat baddies sit by the road and throw milk (from level 2, more later on)
     if (lv >= 2 && i > 0 && cats < (lv >= 16 ? 3 : lv >= 8 ? 2 : 1) && r() < 0.3) {
@@ -640,6 +643,10 @@ function wheee(small) {        // slide-whistle for a banana-skin spin
   o.frequency.setValueAtTime(500 * k, t); o.frequency.exponentialRampToValueAtTime(1400 * k, t + d * 0.45); o.frequency.exponentialRampToValueAtTime(350 * k, t + d);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(small ? 0.12 : 0.35, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + d + 0.02);
+}
+function yip() {                // a happy little puppy yip when a lost puppy joins
+  if (!actx || muted) return;
+  bark(actx.currentTime + 0.01, 1.6);
 }
 function crunch() {             // munching a snack
   if (!actx || muted) return;
@@ -992,6 +999,20 @@ function updateRun(dt) {
     }
   }
   for (const m of members) if (m.spinT > 0) m.spinT -= dt;
+
+  // Lost puppies join the pack when the hot dog or any of his puppies reaches them
+  for (const o of objs) {
+    if (o.t !== 'stray' || o.taken || Math.abs(o.z - player.z) > 4) continue;
+    let got = Math.abs(o.z - player.z) < 0.9 && Math.abs(o.x - player.x) < 1.1;
+    for (const m of members) if (!got && Math.abs(player.z + m.oz - o.z) < 0.6 && Math.abs(m.x - o.x) < 0.7) got = true;
+    if (got) {
+      o.taken = true;
+      count += o.n; syncMembers();
+      addFloat(o.x, 2.4, o.z, `Lost ${o.n > 1 ? 'puppies' : 'puppy'}! +${o.n}`, '#2fd16b');
+      burst(o.x, 1, o.z, '#ff7aa2', 12);
+      yip();
+    }
+  }
 
   // Power-up timers and snacks
   leashT = Math.max(0, leashT - dt);
@@ -1614,6 +1635,22 @@ function drawBanana(o) {
   ctx.fillStyle = '#8a6d1d'; rr(ctx, -0.06 * s, -0.06 * s, 0.12 * s, 0.12 * s, 0.03 * s); ctx.fill();
   ctx.restore();
 }
+// Lost puppies sit on the road wagging, with a little heart floating above
+function drawStray(o) {
+  const p = P(o.x, 0, o.z);
+  if (!p) return;
+  const coat = COATS[o.coat % COATS.length];
+  for (let k = 0; k < o.n; k++) {
+    const q = P(o.x + (k - (o.n - 1) / 2) * 0.55, 0, o.z + (k % 2) * 0.3);
+    if (q) drawPuppy(ctx, q.x, q.y - Math.abs(Math.sin(time * 6 + k)) * 0.06 * q.s, q.s * 1.5, COATS[(o.coat + k) % COATS.length], k === 1, k, false);
+  }
+  const hy = p.y - 1.25 * p.s + Math.sin(time * 3) * 0.08 * p.s, hs = 0.3 * p.s;
+  ctx.fillStyle = '#ff4f8b';
+  ctx.beginPath(); ctx.moveTo(p.x, hy + hs * 0.9);
+  ctx.bezierCurveTo(p.x - hs * 1.6, hy - hs * 0.2, p.x - hs * 0.6, hy - hs * 1.3, p.x, hy - hs * 0.4);
+  ctx.bezierCurveTo(p.x + hs * 0.6, hy - hs * 1.3, p.x + hs * 1.6, hy - hs * 0.2, p.x, hy + hs * 0.9);
+  ctx.fill();
+}
 function drawSnack(o) {
   const bob = Math.sin(time * 4 + o.x) * 0.15;
   const p = P(o.x, 0.9 + bob, o.z), g = P(o.x, 0, o.z);
@@ -1736,6 +1773,7 @@ function drawRunScene() {
     else if (o.t === 'milk' && !o.landed) items.push({ z: o.z, f: () => drawMilk(o) });
     else if (o.t === 'puddle') items.push({ z: o.z + o.d + 0.6, f: () => drawPuddle(o) });
     else if (o.t === 'banana' && !o.taken) items.push({ z: o.z, f: () => drawBanana(o) });
+    else if (o.t === 'stray' && !o.taken) items.push({ z: o.z, f: () => drawStray(o) });
     else if (o.t === 'snack' && !o.taken) items.push({ z: o.z, f: () => drawSnack(o) });
     else if (o.t === 'hole') items.push({ z: o.z + o.d + 0.6, f: () => drawHole(o) });
     else if (o.t === 'hammer') items.push({ z: o.z, f: () => drawHammer(o) });
