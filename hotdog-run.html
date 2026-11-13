@@ -807,13 +807,13 @@ function updateRun(dt) {
     const hit = same.find(g => player.x >= g.x0 - 0.25 && player.x <= g.x1 + 0.25);
     same.forEach(g => { g.used = true; });
     if (hit && hit.op === 'leash') {
-      hit.hit = true;
+      hit.hit = true; shatterGate(hit);
       leashT = LEASH_TIME;
       addFloat(player.x, 2.6, player.z + 1, 'POWER LEASH!', '#ffc531');
       burst(player.x, 1, player.z, '#ffc531', 20);
       powerUpSound(); woof(true); player.woofT = 0.8;
     } else if (hit) {
-      hit.hit = true;
+      hit.hit = true; shatterGate(hit);
       const before = count;
       count = Math.min(99999, Math.floor(applyOp(count, hit)));
       const d = count - before;
@@ -1466,14 +1466,42 @@ function drawGate(g) {
   const x = a.x, y = b.y, w = b.x - a.x, hh = a.y - b.y;
   const faded = g.used && !g.hit;
   if (g.op === 'leash') { drawLeashGate(g, x, y, w, hh, a.s, faded); return; }
-  ctx.fillStyle = faded ? 'rgba(47,140,255,0.12)' : g.hit ? 'rgba(120,200,255,0.25)' : 'rgba(47,140,255,0.42)';
-  ctx.fillRect(x, y, w, hh);
-  ctx.strokeStyle = faded ? 'rgba(170,215,255,0.35)' : 'rgba(200,232,255,0.95)';
-  ctx.lineWidth = Math.max(1.5, 0.08 * a.s);
-  ctx.strokeRect(x, y, w, hh);
-  if (!faded) {
-    const sym = g.op === '-' ? '−' : g.op;
-    outlinedText(ctx, sym + g.val, x + w / 2, y + hh / 2, Math.min(w * 0.38, 1.35 * a.s), '#ffffff', '#11408a');
+  if (g.hit) {                                   // the chosen square flashes white as it shatters
+    const age = time - (g.hitTime || 0);
+    if (age > 0.25) return;
+    ctx.fillStyle = `rgba(230,245,255,${0.7 * (1 - age / 0.25)})`; ctx.fillRect(x, y, w, hh);
+    return;
+  }
+  if (faded) {
+    ctx.fillStyle = 'rgba(47,140,255,0.12)'; ctx.fillRect(x, y, w, hh);
+    ctx.strokeStyle = 'rgba(170,215,255,0.35)'; ctx.lineWidth = Math.max(1.5, 0.08 * a.s); ctx.strokeRect(x, y, w, hh);
+    return;
+  }
+  // flat see-through blue glass: lighter at the top, with a shine that sweeps across now and then
+  const gr = ctx.createLinearGradient(0, y, 0, y + hh);
+  gr.addColorStop(0, 'rgba(110,185,255,0.5)'); gr.addColorStop(1, 'rgba(47,140,255,0.38)');
+  ctx.fillStyle = gr; ctx.fillRect(x, y, w, hh);
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, hh); ctx.clip();
+  const sweep = ((time * 0.6 + g.z * 0.05) % 1.6) / 1.6;   // 0..1 across, then a pause
+  const sx = x - w * 0.5 + sweep * w * 2.5;
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + w * 0.18, y); ctx.lineTo(sx - w * 0.22, y + hh); ctx.lineTo(sx - w * 0.4, y + hh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(x, y, w, hh * 0.07);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(210,236,255,0.95)'; ctx.lineWidth = Math.max(1.5, 0.08 * a.s); ctx.strokeRect(x, y, w, hh);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+  const ins = Math.max(2, 0.12 * a.s); ctx.strokeRect(x + ins, y + ins, w - ins * 2, hh - ins * 2);
+  const sym = g.op === '-' ? '−' : g.op;
+  // a dark red outline on minus numbers, dark blue on the good ones, so they are easy to tell apart
+  outlinedText(ctx, sym + g.val, x + w / 2, y + hh / 2, Math.min(w * 0.38, 1.35 * a.s), '#ffffff', g.op === '-' ? '#8a1130' : '#11408a');
+}
+// The square you pick bursts into little pieces of sparkly blue glass
+function shatterGate(g) {
+  g.hitTime = time;
+  for (let k = 0; k < 28; k++) {
+    parts.push({ x: g.x0 + Math.random() * (g.x1 - g.x0), y: Math.random() * 3.2, z: g.z,
+      vx: (Math.random() - 0.5) * 6, vy: Math.random() * 3 + 1, vz: Math.random() * 6 + 4,
+      c: k % 3 ? '#9fd0ff' : '#ffffff', t: 0 });
   }
 }
 

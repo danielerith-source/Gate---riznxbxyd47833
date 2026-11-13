@@ -1,9 +1,10 @@
 # Hot Doggy Run: what's new
 
-Every hour the game gets one little improvement. The newest is at the top.
+Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 13 November 2026
 
+- **Shiny glass squares!** The blue squares now look like real see-through glass, with a sparkle of light that sweeps across them. Minus numbers have a red edge so you can spot the bad ones quickly. When you run through a square it smashes into sparkly blue pieces!
 - **Watch out for the cheeky cats!** From level 2, naughty cats sit by the road. When you get close they shout "Meow!", throw a carton of milk, and laugh "Hee hee!". If you run through the milk puddle, the hot dog and his puppies slip and slide all over the place. Don't worry, milk never hurts anyone. Steer round it or jump over it!
 
 ## 12 November 2026
