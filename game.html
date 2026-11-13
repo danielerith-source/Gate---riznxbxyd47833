@@ -149,7 +149,6 @@
         <span><b>Bombs</b>: fire, frost, holy</span>
         <span><b>Hordes</b> change each level</span>
         <span><b>Gold</b> buys new weapons</span>
-        <span><b>Armoury</b>: chickens, bagpipes…</span>
       </div>
       <button class="btn" id="playBtn">PLAY</button>
       <div class="row">
@@ -229,8 +228,15 @@
   // ════════════════════════════════════════════════════════════════════
   const SAVE_KEY = 'hordebreaker.v2';
   const blank = () => ({ level: 1, best: 0, coins: 0, up: { dmg: 0, rate: 0, squad: 0, meteor: 0 }, owned: ['longbow'], equipped: 'longbow' });
+  const RETIRED_PRICES = { blunderbuss: 350, baguette: 500, chicken: 900, bagpipes: 1500 };
   let save = (() => { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.up) return Object.assign(blank(), s); } catch {} return blank(); })();
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
+  if (save.owned) {
+    for (const id of save.owned) if (RETIRED_PRICES[id]) save.coins += RETIRED_PRICES[id];
+    save.owned = save.owned.filter(id => !RETIRED_PRICES[id]);
+    if (RETIRED_PRICES[save.equipped]) save.equipped = 'longbow';
+    persist();
+  }
 
   const UPGRADES = [
     { id: 'dmg', name: 'Tempered Steel', desc: '+12% damage for every weapon', max: 10 },
@@ -799,22 +805,14 @@
   // ════════════════════════════════════════════════════════════════════
   // Main weapons bought in the Armoury. Pickups (below) override them for a while.
   const MAIN = {
-    longbow: { name: 'Longbow', price: 0, color: '#fff2a8', glyph: '➹', stats: 'Steady single arrows',
-      desc: 'Pointy end goes towards the skeletons. Usually.' },
-    crossbow: { name: 'Repeating Crossbow', price: 200, color: '#cfe0ff', glyph: '⇶', stats: 'Very fast, lighter bolts',
-      desc: 'Twice the bolts, half the aiming. The quartermaster calls it "spray and pray".' },
-    blunderbuss: { name: 'Blunderbuss', price: 350, color: '#e0cfa8', glyph: '✺', stats: 'Wide blast, short range',
-      desc: 'Loads nails, cutlery and the odd teaspoon. Accuracy is a state of mind.' },
-    baguette: { name: 'Boomerang Baguette', price: 500, color: '#f0c070', glyph: 'Ɔ', stats: 'Slices through, comes back',
-      desc: 'Three days stale and twice as deadly. Flies out, cuts through, returns for seconds.' },
-    garlic: { name: 'Garlic Cannon', price: 700, color: '#c8f08a', glyph: '☁', stats: 'Lingering stink clouds',
+    longbow: { name: 'Longbow', price: 0, color: '#fff2a8', glyph: '➹', stats: 'Single arrows, steady damage',
+      desc: 'A trusty yew longbow. Accurate and dependable.' },
+    crossbow: { name: 'Repeating Crossbow', price: 250, color: '#cfe0ff', glyph: '⇶', stats: 'Rapid bolts, lighter hits',
+      desc: 'A magazine-fed crossbow. Far more bolts, each a little lighter.' },
+    garlic: { name: 'Garlic Cannon', price: 600, color: '#c8f08a', glyph: '☁', stats: 'Bursts into lingering clouds that keep hurting',
       desc: 'The undead hate it. So does anyone standing downwind.' },
-    chicken: { name: 'Explosive Chicken Launcher', price: 900, color: '#ffd27a', glyph: 'ʘ', stats: 'Huge blasts, slow reload',
-      desc: 'Free-range. Briefly. The chickens assure us they volunteered.' },
-    hose: { name: 'Holy Water Hose', price: 1200, color: '#9fe6ff', glyph: '≋', stats: 'Constant spray, double vs wraiths',
-      desc: 'Blessed by a very tired vicar. Mind the puddles.' },
-    bagpipes: { name: 'Bagpipes of Doom', price: 1500, color: '#ff9ad0', glyph: '♫', stats: 'Sound waves hit a wide cone, knock back',
-      desc: 'Classed as a siege weapon in four kingdoms. Banned in a fifth.' },
+    hose: { name: 'Holy Water Hose', price: 1100, color: '#9fe6ff', glyph: '≋', stats: 'Constant stream, double damage to wraiths',
+      desc: 'Blessed by a very tired vicar.' },
   };
   const PICKUPS = ['triple', 'fire', 'ballista', 'storm'];
   const isPickup = w => PICKUPS.includes(w);
@@ -935,7 +933,7 @@
       hx: W / 2, targetX: W / 2,
       enemies, foeArrows: [], shots: [], bolts: [], parts: [], smoke: [], texts: [], runners: [], booms: [], corpses: [], crates: [],
       fireAcc: 0, shooterIdx: 0, zapT: 0, cracks: [], deathBy: null,
-      weapon: baseWeapon(), weaponT: 0, waves: [], hose: null, pipeT: 0.5,
+      weapon: baseWeapon(), weaponT: 0, hose: null,
       meteorCharge: 0, meteorNeed: Math.max(22, 45 - 4 * save.up.meteor), meteor: null, craters: [],
       bomb: { charges: 2, t: 0, next: 'fire' }, thrown: [], zones: [], bubbles: [], talkT: 2.5, bossVoice: { isBoss: true, x: 0, y: 0 },
       lanes: [makeLane(LANE_L, lp, big ? 'gold' : 'blue'), makeLane(LANE_R, rp, big ? 'blue' : 'gold')],
@@ -1538,12 +1536,8 @@
     } else if (w === 'hose') {
       sprayHose(full * 1.9 * dt);
       S.fireAcc += dt * 2 * Math.min(n, 6);
-    } else if (w === 'bagpipes') {
-      S.pipeT -= dt;
-      if (S.pipeT <= 0) { S.pipeT = 0.85; pipeWave(full * 0.85 * 1.5); }
-      S.fireAcc += dt * 2 * Math.min(n, 6);
     } else {
-      const RATE = { fire: 0.2, ballista: 0.33, triple: 0.6, crossbow: 1.9, blunderbuss: 0.32, baguette: 0.35, garlic: 0.22, chicken: 0.18 };
+      const RATE = { fire: 0.2, ballista: 0.33, triple: 0.6, crossbow: 1.9, garlic: 0.22 };
       S.fireAcc += dt * BASE_RATE * rateMult * (RATE[w] || 1) * n;
     }
     let guard = 0;
@@ -1554,15 +1548,9 @@
       if (w === 'triple') { [-110, 0, 110].forEach(vx => S.shots.push({ k: 'arrow', x, y, vx, vy: -ARROW_SPEED, dmg: per * 0.75 })); }
       else if (w === 'fire') S.shots.push({ k: 'pot', x, y, vx: 0, vy: -560, dmg: per * 5 * 0.9, spin: 0 });
       else if (w === 'ballista') S.shots.push({ k: 'bolt', x, y, vx: 0, vy: -980, dmg: per * 3, pierce: 6, hit: new Set() });
-      else if (w === 'storm' || w === 'hose' || w === 'bagpipes') S.shots.push({ k: 'arrow', x, y, vx: 0, vy: -ARROW_SPEED, dmg: per * 0.2 });
-      else if (w === 'crossbow') S.shots.push({ k: 'quarrel', x: x + rnd(-3, 3), y, vx: rnd(-25, 25), vy: -950, dmg: per * 0.62 });
-      else if (w === 'blunderbuss') {
-        for (let i = 0; i < 6; i++) S.shots.push({ k: 'pellet', x, y, vx: rnd(-260, 260), vy: -rnd(820, 980), dmg: per * 0.75, life: rnd(0.36, 0.46) });
-        puff(x, y - 6, 1, 5);
-      }
-      else if (w === 'baguette') S.shots.push({ k: 'baguette', x, y, vx: 0, vy: -640, dmg: per * 2.4, pierce: 5, hit: new Set(), spin: 0, ret: false });
+      else if (w === 'storm' || w === 'hose') S.shots.push({ k: 'arrow', x, y, vx: 0, vy: -ARROW_SPEED, dmg: per * 0.2 });
+      else if (w === 'crossbow') S.shots.push({ k: 'quarrel', x: x + rnd(-2, 2), y, vx: rnd(-8, 8), vy: -950, dmg: per * 0.78 });
       else if (w === 'garlic') S.shots.push({ k: 'garlic', x, y, vx: 0, vy: -540, dmg: per * 2.6, zdps: per * 1.7, spin: 0 });
-      else if (w === 'chicken') { S.shots.push({ k: 'chicken', x, y, vx: rnd(-20, 20), vy: -430, dmg: per * 6, spin: 0 }); if (Math.random() < 0.25) floatText(x, y - 20, 'BAWK!', '#ffe9a8', 12); }
       else S.shots.push({ k: 'arrow', x, y, vx: 0, vy: -ARROW_SPEED, dmg: per });
       sfx.shot();
     }
@@ -1573,10 +1561,20 @@
     const hx = S.hx, hy = PLAYER_Y - 44;
     const lane = laneUnderHero();
     if (lane) { hitGate(lane, dmg); S.hose = { x: hx, y: BARRIER_Y + 20 }; return; }
+    const open = S.lanes.find(l => l.open && !l.done && hx >= l.x0 - 4 && hx <= l.x1 + 4);
+    if (open) {
+      const ti = open.tiles.findIndex(t => t.kind === 'skull' && !t.dead);
+      if (ti >= 0) {
+        const t = open.tiles[ti], ty = BARRIER_Y - 28 - ti * TILE_H + open.offset;
+        t.hp -= dmg; S.hose = { x: (open.x0 + open.x1) / 2, y: ty };
+        if (t.hp <= 0) { t.dead = true; burst((open.x0 + open.x1) / 2, ty, '#ffffff', 16, 160); floatText((open.x0 + open.x1) / 2, ty, 'SMASHED', '#fff', 16); sfx.boom(); }
+        return;
+      }
+    }
     let tgt = null;
     for (const e of S.enemies) {
       if (e.dead || e.flee || e.y < TARGET_Y || e.y > hy) continue;
-      if (Math.abs(e.x - hx) < 18 + e.r && (!tgt || e.y > tgt.y)) tgt = e;
+      if (Math.abs(e.x - hx) < 26 + e.r && (!tgt || e.y > tgt.y)) tgt = e;
     }
     if (tgt) {
       damageEnemy(tgt, dmg * (tgt.fac === 'wraith' ? 2 : 1));
@@ -1586,25 +1584,6 @@
     else S.hose = { x: hx, y: Math.max(TARGET_Y, hy - 320) };
     if (Math.random() < 0.6) S.parts.push({ x: S.hose.x + rnd(-6, 6), y: S.hose.y, vx: rnd(-60, 60), vy: rnd(-60, 0), life: 0.4, max: 0.4, color: '#bff0ff', size: 2 });
     if (canPlay('hose', 140)) noise(0.15, 0.03, 3000);
-  }
-  function pipeWave(total) {
-    const hx = S.hx, hy = PLAYER_Y - 40;
-    S.waves.push({ x: hx, y: hy, t: 0 });
-    tone(147, 0.6, 'sawtooth', 0.035, 0); tone(220, 0.5, 'sawtooth', 0.025, 8); tone(330, 0.25, 'square', 0.015, 40, 0.15);
-    floatText(hx + rnd(-30, 30), hy - 40, Math.random() < 0.5 ? '♪' : '♫', '#ff9ad0', 18);
-    const lane = laneUnderHero(); if (lane) hitGate(lane, total);
-    const hits = [];
-    for (const e of S.enemies) {
-      if (e.dead || e.flee || e.y < TARGET_Y || e.y > hy) continue;
-      const dist = hy - e.y;
-      if (dist < 320 && Math.abs(e.x - hx) < 40 + dist * 0.4) hits.push(e);
-    }
-    hits.sort((a, b) => b.y - a.y);
-    for (const e of hits.slice(0, 22)) {
-      damageEnemy(e, total * 0.22);
-      if (!e.dead && e.kind !== 'giant') e.y -= 14;
-    }
-    if (S.boss.alive && S.boss.y > TARGET_Y + 40 && hy - S.boss.y < 360 && Math.abs(S.boss.x - hx) < 140) hitBoss(total * 0.6);
   }
 
   function zap(total) {
@@ -1666,19 +1645,15 @@
       const oy = s.y;
       s.x += s.vx * dt; s.y += s.vy * dt;
       if (s.k === 'pot') { s.spin += dt * 12; if (Math.random() < 0.6) S.parts.push({ x: s.x + rnd(-2, 2), y: s.y + 8, vx: rnd(-14, 14), vy: 40, life: 0.35, max: 0.35, color: Math.random() < 0.5 ? '#ff9a3d' : '#ffd27a', size: 2 }); if (Math.random() < 0.15) S.smoke.push({ x: s.x, y: s.y + 10, r: 3, vx: rnd(-6, 6), vy: 10, life: 0.6, max: 0.6 }); }
-      if (s.k === 'pellet') { s.life -= dt; }
-      if (s.k === 'baguette' || s.k === 'garlic' || s.k === 'chicken') s.spin += dt * (s.k === 'chicken' ? 18 : 14);
-      if (s.k === 'baguette' && !s.ret && (s.y < PLAYER_Y - 400 || s.pierce <= 0)) { s.ret = true; s.vy = 640; s.hit = new Set(); s.pierce = 5; }
-      if (s.k === 'chicken' && Math.random() < 0.5) S.parts.push({ x: s.x, y: s.y + 8, vx: rnd(-15, 15), vy: 40, life: 0.3, max: 0.3, color: Math.random() < 0.6 ? '#ff9a3d' : '#ffffff', size: 2 });
+      if (s.k === 'garlic') s.spin += dt * 14;
       if (s.k === 'garlic' && Math.random() < 0.3) S.parts.push({ x: s.x, y: s.y + 6, vx: rnd(-10, 10), vy: 20, life: 0.4, max: 0.4, color: '#c8f08a', size: 2.5 });
-      let dead = s.y < -30 || s.x < -10 || s.x > W + 10 || (s.k === 'pellet' && s.life <= 0) || (s.k === 'baguette' && s.ret && s.y > PLAYER_Y - 20);
+      let dead = s.y < -30 || s.x < -10 || s.x > W + 10;
       // vault gates & skull tiles
       if (!dead) for (const ln of S.lanes) {
-        if (s.x < ln.x0 || s.x > ln.x1 || ln.done || s.ret) continue;
+        if (s.x < ln.x0 || s.x > ln.x1 || ln.done) continue;
         if (!ln.open && s.y <= BARRIER_Y + 16 && ln.drop < 0.05) {
           if (s.k === 'pot') explodeAt(s.x, BARRIER_Y + 14, 26, s.dmg);
-          else if (s.k === 'chicken') { explodeAt(s.x, BARRIER_Y + 14, 40, s.dmg); burst(s.x, BARRIER_Y + 10, '#ffffff', 14, 140, 0.8, 2.5); }
-          else hitGate(ln, s.dmg);
+          else hitGate(ln, s.dmg * (s.k === 'garlic' ? 2.4 : 1)); // garlic clouds can't hurt stone, so the bulb hits harder
           burst(s.x, BARRIER_Y + 14, '#ffd77a', 2, 80, 0.3); dead = true; break;
         }
         if (ln.open) {
@@ -1687,7 +1662,7 @@
             if (t.kind !== 'skull' || t.dead) continue;
             const ty = BARRIER_Y - 28 - ti * TILE_H + ln.offset;
             if (s.y <= ty + TILE_H / 2 && oy >= ty - TILE_H / 2) {
-              t.hp -= s.dmg * (s.k === 'pot' ? 1.5 : 1); dead = true;
+              t.hp -= s.dmg * (s.k === 'pot' ? 1.5 : s.k === 'garlic' ? 2.4 : 1); dead = true;
               burst(s.x, ty + 10, '#ff6a5f', 2, 70, 0.3);
               if (t.hp <= 0) { t.dead = true; burst((ln.x0 + ln.x1) / 2, ty, '#ffffff', 16, 160); floatText((ln.x0 + ln.x1) / 2, ty, 'SMASHED', '#fff', 16); sfx.boom(); }
               break;
@@ -1707,20 +1682,17 @@
         }
         if (hitE) {
           if (s.k === 'pot') { explodeAt(s.x, hitE.y - 6, 30, s.dmg); dead = true; }
-          else if (s.k === 'chicken') {
-            explodeAt(s.x, hitE.y - 6, 46, s.dmg); burst(s.x, hitE.y - 10, '#ffffff', 18, 170, 0.9, 2.5); dead = true;
-            if (Math.random() < 0.3) floatText(s.x, hitE.y - 40, 'KA-BAWK!', '#ffe9a8', 14);
-          } else if (s.k === 'garlic') {
+          else if (s.k === 'garlic') {
             damageEnemy(hitE, s.dmg); dead = true;
             S.zones.push({ type: 'garlic', x: s.x, y: hitE.y - 4, r: 36, t: 3, max: 3, dps: s.zdps });
             if (S.zones.length > 30) S.zones.shift();
-          } else if (s.k === 'bolt' || s.k === 'baguette') {
+          } else if (s.k === 'bolt') {
             damageEnemy(hitE, s.dmg); s.hit.add(hitE); burst(s.x, hitE.y - 8, '#ffffff', 2, 60, 0.25);
             if (--s.pierce <= 0) dead = true;
           } else { damageEnemy(hitE, s.dmg); dead = true; if (hitE.kind === 'shield' && !hitE.dead) burst(s.x, hitE.y - 10, '#e8eef5', 2, 60, 0.2, 1.5); sfx.hit(); }
         } else if (b.alive && b.y > TARGET_Y + 40 && Math.abs(s.x - b.x) < 60 && s.y <= b.y && oy >= b.y - 170) {
-          if (s.k === 'pot' || s.k === 'chicken') explodeAt(s.x, b.y - 30, 34, s.dmg); else hitBoss(s.dmg);
-          burst(s.x, b.y - 30, '#ffb36b', 2, 90, 0.3); dead = s.k !== 'baguette' || (s.ret = true, s.vy = 640, false);
+          if (s.k === 'pot') explodeAt(s.x, b.y - 30, 34, s.dmg); else hitBoss(s.dmg);
+          burst(s.x, b.y - 30, '#ffb36b', 2, 90, 0.3); dead = true;
         }
       }
       if (dead) S.shots.splice(i, 1);
@@ -2092,7 +2064,7 @@
     text('!', x, PLAYER_Y - 4, 22, '#ff4a40', '#000');
   }
 
-  function drawHoseAndPipes() {
+  function drawHose() {
     if (S.hose && !S.over) {
       const x0 = px(S.hx + 10, PLAYER_Y - 44), y0 = PLAYER_Y - 44, x1 = px(S.hose.x, S.hose.y), y1 = S.hose.y;
       ctx.save(); ctx.lineCap = 'round';
@@ -2102,16 +2074,6 @@
         ctx.stroke();
       }
       ctx.globalCompositeOperation = 'lighter'; drawGlow(GLOW.cyan, x1, y1, 50, 0.6);
-      ctx.restore();
-    }
-    for (let i = S.waves.length - 1; i >= 0; i--) {
-      const wv = S.waves[i]; wv.t += 1 / 60;
-      if (wv.t > 0.7) { S.waves.splice(i, 1); continue; }
-      const r = 30 + wv.t * 480, a = 1 - wv.t / 0.7, x = px(wv.x, wv.y);
-      ctx.save(); ctx.globalAlpha = a;
-      [['#ff9ad0', 0], ['#5ad08a', 8], ['#ffd27a', 16]].forEach(([c, off]) => {
-        ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, wv.y, r - off, (r - off) * 0.55, 0, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
-      });
       ctx.restore();
     }
   }
@@ -2165,30 +2127,11 @@
         ctx.fillStyle = '#dfe8f4'; ctx.beginPath(); ctx.moveTo(0, -3.5); ctx.lineTo(1.8, 0.8); ctx.lineTo(-1.8, 0.8); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#8fb0e0'; ctx.fillRect(-1.8, 8, 3.6, 1.6);
         ctx.restore();
-      } else if (s.k === 'pellet') {
-        ctx.fillStyle = '#2a2a30'; ctx.beginPath(); ctx.arc(x, s.y, 1.9 * d, 0, TAU); ctx.fill();
-        ctx.fillStyle = 'rgba(255,230,180,0.8)'; ctx.fillRect(x - 0.5, s.y - 0.5, 1, 1);
-      } else if (s.k === 'baguette') {
-        ctx.save(); ctx.translate(x, s.y); ctx.rotate(s.spin); ctx.scale(d, d);
-        const bg = ctx.createLinearGradient(0, -3, 0, 3); bg.addColorStop(0, '#f6cf7a'); bg.addColorStop(1, '#a8621e');
-        ctx.fillStyle = bg; rrect(ctx, -13, -3.2, 26, 6.4, 3.2); ctx.fill();
-        ctx.strokeStyle = '#7a4210'; ctx.lineWidth = 0.9; for (let i = -8; i <= 8; i += 5.3) { ctx.beginPath(); ctx.moveTo(i - 2, -2.2); ctx.lineTo(i + 2, 1.8); ctx.stroke(); }
-        ctx.restore();
       } else if (s.k === 'garlic') {
         ctx.save(); ctx.translate(x, s.y); ctx.rotate(Math.sin(s.spin) * 0.4); ctx.scale(d, d);
         ctx.fillStyle = '#f4f0e2'; ctx.beginPath(); ctx.moveTo(0, -7); ctx.quadraticCurveTo(6, -4, 5, 1); ctx.quadraticCurveTo(0, 5, -5, 1); ctx.quadraticCurveTo(-6, -4, 0, -7); ctx.fill();
         ctx.strokeStyle = '#c9c0a4'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(0, -6); ctx.quadraticCurveTo(-2, -1, 0, 3); ctx.moveTo(0, -6); ctx.quadraticCurveTo(2.5, -1, 2, 2.5); ctx.stroke();
         ctx.fillStyle = '#b9a87a'; ctx.fillRect(-0.6, -9.5, 1.2, 3);
-        ctx.restore();
-      } else if (s.k === 'chicken') {
-        ctx.save(); ctx.translate(x, s.y); ctx.scale(d * 1.15, d * 1.15);
-        const flap = Math.sin(s.spin) * 4;
-        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 7, 0, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#f2ece0'; ctx.beginPath(); ctx.ellipse(-6, 0, 4, 1.8 + flap * 0.3, -0.4, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(6, 0, 4, 1.8 - flap * 0.3, 0.4, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -7.5, 3.4, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#e0322c'; ctx.beginPath(); ctx.arc(-1, -11, 1.3, 0, TAU); ctx.arc(1, -11.3, 1.3, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#ff9a1a'; ctx.beginPath(); ctx.moveTo(-1.2, -6.8); ctx.lineTo(0, -4.4); ctx.lineTo(1.2, -6.8); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#111'; ctx.fillRect(-2, -8.6, 1, 1); ctx.fillRect(1, -8.6, 1, 1);
         ctx.restore();
       } else if (s.k === 'bolt') {
         ctx.save(); ctx.translate(x, s.y); ctx.scale(d, d);
@@ -2384,7 +2327,7 @@
     drawCrates();
     drawEnemies();
     drawShots();
-    drawHoseAndPipes();
+    drawHose();
     drawSquad();
     drawFx();
     drawBanter();
