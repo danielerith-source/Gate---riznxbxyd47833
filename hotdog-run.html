@@ -135,6 +135,7 @@
       <li><b>POWER LEASH</b> (the gold square): your whole pack is invincible for 5 seconds!</li>
       <li>Grab <b>dog biscuits</b> and <b>bacon</b> on the road: they make your puppies tougher, so traps miss them.</li>
       <li>Watch out for <b>banana skins</b>! Gobble one and you'll spin round and skid. Jump over them!</li>
+      <li>Cheeky <b>cats</b> throw milk on the road. Run through it and everyone slips and slides about! Steer round it or jump over.</li>
       <li>Spend your coins in the <b>Shop</b> on spare Power Leashes, biscuits and extra puppies, or dress up your hot dog in the <b>Doggie Store</b>!</li>
       <li>Win a level and the puppies will give you a lick!</li>
       <li>At the end, every ladder step needs puppies: step 1 needs 1, step 2 needs 2, step 3 needs 3… and on the big levels the top step needs 100!</li>
@@ -358,7 +359,7 @@ function makeLevel(lv) {
   const anyObstacle = z0 => add[pool[(r() * pool.length) | 0]](z0);
   const extraChance = lv <= 2 ? 0.1 : Math.min(0.85, 0.1 + lv * 0.05);
 
-  let leashes = 0;
+  let leashes = 0, cats = 0;
   for (let i = 0; i < segs; i++) {
     const roll = r();
     let type;
@@ -395,6 +396,10 @@ function makeLevel(lv) {
     }
     if (i > 0 && r() < extraChance) anyObstacle(z + 11);
     // Snacks to grab on the road, sometimes in tricky spots
+    // Cheeky cat baddies sit by the road and throw milk (from level 2, more later on)
+    if (lv >= 2 && i > 0 && cats < (lv >= 16 ? 3 : lv >= 8 ? 2 : 1) && r() < 0.3) {
+      cats++; objs.push({ t: 'cat', z: z + 10, side: r() < 0.5 ? -1 : 1, state: 'wait', t2: 0, fur: r() < 0.5 ? 'grey' : 'ginger' });
+    }
     // Banana skins: gobbling one sends you spinning (from level 2)
     if (lv >= 2 && i > 0 && r() < Math.min(0.6, 0.2 + lv * 0.03)) objs.push({ t: 'banana', z: z + (r() < 0.5 ? 4 : 14), x: R(-4, 4), rot: r() * 6, taken: false });
     if (i > 0 && r() < 0.5) objs.push({ t: 'snack', kind: lv >= 3 && r() < 0.25 ? 'bacon' : 'biscuit', z: z + (r() < 0.5 ? 6 : 16), x: R(-3.8, 3.8), taken: false });
@@ -445,7 +450,7 @@ const COATS = [['#f2c38f', '#a8682f'], ['#ffffff', '#c9a27a'], ['#3a3a3a', '#1e1
 function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
-  player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0 };
+  player = { x: 0, tx: 0, z: 0, speed: 11 + Math.min(4, lv * 0.12), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
   count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; leashT = 0; armour = 0;
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
@@ -603,6 +608,30 @@ function powerUpSound() {
   const t = actx.currentTime + 0.01;
   [67, 71, 74, 79, 83, 86].forEach((n, i) => tone(t + i * 0.05, n, 0.18, 'square', 0.2, sfxBus));
 }
+function meow() {               // a cheeky cat "meee-ow"
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01, o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  const lfo = actx.createOscillator(), lg = actx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(520, t); o.frequency.linearRampToValueAtTime(820, t + 0.18); o.frequency.exponentialRampToValueAtTime(430, t + 0.55);
+  lfo.frequency.value = 7; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency);
+  f.type = 'bandpass'; f.Q.value = 3; f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(1800, t + 0.2); f.frequency.linearRampToValueAtTime(1100, t + 0.55);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6, t + 0.05); g.gain.setValueAtTime(0.6, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+  o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t); lfo.start(t); o.stop(t + 0.62); lfo.stop(t + 0.62);
+}
+function splash() {             // milk carton splats on the road
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01;
+  noise(t, 0.3, 'lowpass', 1400, 0.8, 1.0, sfxBus); noise(t + 0.04, 0.2, 'bandpass', 3000, 1.5, 0.4, sfxBus);
+}
+function slipSound() {          // wobbly slippy-slidey
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01, o = actx.createOscillator(), g = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(420, t); o.frequency.linearRampToValueAtTime(260, t + 0.7);
+  lfo.frequency.value = 11; lg.gain.value = 60; lfo.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+  o.connect(g); g.connect(sfxBus); o.start(t); lfo.start(t); o.stop(t + 0.78); lfo.stop(t + 0.78);
+}
 function wheee(small) {        // slide-whistle for a banana-skin spin
   if (!actx || muted) return;
   const t = actx.currentTime + 0.01, o = actx.createOscillator(), g = actx.createGain();
@@ -757,6 +786,11 @@ function updateRun(dt) {
     player.spinT -= dt; player.spinA += dt * 16;
     player.tx = clamp(player.tx + player.slide * dt, -ROAD + 0.6, ROAD - 0.6);
     player.x += (player.tx - player.x) * Math.min(1, dt * 5);
+  } else if (player.slipT > 0) {               // milk! slippery steering, sliding about
+    player.slipT -= dt; player.spinA = 0;
+    player.vx += ((player.tx - player.x) * 2.5 + Math.sin(time * 9 + 1) * 7) * dt;
+    player.vx *= Math.pow(0.55, dt);
+    player.x = clamp(player.x + player.vx * dt, -ROAD + 0.6, ROAD - 0.6);
   } else {
     player.spinA = 0;
     player.x += (player.tx - player.x) * Math.min(1, dt * 14);
@@ -901,6 +935,46 @@ function updateRun(dt) {
   const laserNear = objs.some(o => (o.t === 'laser' || o.t === 'spikes' || o.t === 'spin' || o.t === 'hole') && o.z - player.z > -6 && o.z - player.z < 9);
   squeeze += ((laserNear ? 0.4 : 1) - squeeze) * Math.min(1, dt * 6);
 
+  // Cats throw milk cartons that splat into slippery puddles (never harmful, just silly)
+  for (const o of objs) {
+    if (o.t !== 'cat') continue;
+    o.t2 = (o.t2 || 0) + dt;
+    if (o.state === 'wait' && o.z - player.z < 19 && o.z > player.z) {
+      o.state = 'throw'; o.t2 = 0; meow();
+      addFloat(o.side * (ROAD + 1.8), 2.4, o.z, 'Meow!', '#ff9f1c');
+    }
+    if (o.state === 'throw' && o.t2 > 0.45) {
+      o.state = 'done'; o.t2 = 0;
+      const flight = 0.85, tz = player.z + player.speed * flight + 7;
+      const tx = clamp(player.x + (Math.random() - 0.5) * 3, -ROAD + 1.8, ROAD - 1.8);
+      objs.push({ t: 'milk', x0: o.side * (ROAD + 1.6), z0: o.z, x1: tx, z1: tz, u: 0, flight, x: o.side * (ROAD + 1.6), y: 1.6, z: o.z });
+    }
+  }
+  for (const o of objs) {
+    if (o.t !== 'milk' || o.landed) continue;
+    o.u += dt / o.flight;
+    const u = Math.min(1, o.u);
+    o.x = o.x0 + (o.x1 - o.x0) * u; o.z = o.z0 + (o.z1 - o.z0) * u; o.y = 1.6 * (1 - u) + 4 * Math.sin(Math.PI * u);
+    if (o.u >= 1) {
+      o.landed = true;
+      objs.push({ t: 'puddle', x: o.x1, z: o.z1 - 1.6, rx: 2.1, d: 3.2, seed: Math.random() * 6 });
+      burst(o.x1, 0.3, o.z1, '#ffffff', 16); splash();
+    }
+  }
+  const inPuddle = (o, x, z) => { const dx = (x - o.x) / o.rx, dz = (z - o.z - o.d / 2) / (o.d / 2); return dx * dx + dz * dz < 1; };
+  for (const o of objs) {
+    if (o.t !== 'puddle' || Math.abs(o.z - player.z) > 8) continue;
+    if (player.slipT <= 0 && (player.jump || 0) < 0.3 && inPuddle(o, player.x, player.z)) {
+      player.slipT = 1.7; player.vx = (Math.random() < 0.5 ? -1 : 1) * 4;
+      addFloat(player.x, 2.6, player.z + 1, 'Whoa, slippy!', '#ffffff'); slipSound();
+    }
+    for (const m of members) {
+      const mz = player.z + m.oz;
+      if (!(m.slipT > 0) && airAt(mz) < 0.3 && inPuddle(o, m.x, mz)) { m.slipT = 1.4; m.slipDir = Math.random() < 0.5 ? -1 : 1; }
+    }
+  }
+  for (const m of members) if (m.slipT > 0) m.slipT -= dt;
+
   // Banana skins
   for (const o of objs) {
     if (o.t !== 'banana' || o.taken || Math.abs(o.z - player.z) > 4) continue;
@@ -947,8 +1021,9 @@ function updateRun(dt) {
   // Crowd follows the dog
   for (let i = 0; i < members.length; i++) {
     const m = members[i], f = form[i];
-    const tx = clamp(pathX(player.z + m.oz) + f.ox * squeeze, -ROAD + 0.25, ROAD - 0.25);
-    m.x += (tx - m.x) * Math.min(1, dt * 8);
+    const slip = m.slipT > 0 ? Math.sin(time * 7 + m.ph * 3) * 1.8 * m.slipDir * Math.min(1, m.slipT) : 0;
+    const tx = clamp(pathX(player.z + m.oz) + f.ox * squeeze + slip, -ROAD + 0.25, ROAD - 0.25);
+    m.x += (tx - m.x) * Math.min(1, dt * (m.slipT > 0 ? 3 : 8));
     m.oz += (f.oz - m.oz) * Math.min(1, dt * 8);
   }
 
@@ -1420,6 +1495,80 @@ function drawLeashGate(g, x, y, w, hh, s, faded) {
   outlinedText(ctx, 'POWER', cx, y + hh * 0.64, fs, '#ffe08a', '#7a4e00');
   outlinedText(ctx, 'LEASH', cx, y + hh * 0.64 + fs * 1.05, fs, '#ffe08a', '#7a4e00');
 }
+// A cheeky cat baddie sitting by the road, facing you
+function drawCat(o) {
+  const x = o.side * (ROAD + 1.8), p = P(x, 0, o.z);
+  if (!p || p.s < 3) return;
+  const s = p.s * 1.75, fur = o.fur === 'ginger' ? ['#f4a259', '#c96f27'] : ['#9aa5b5', '#5b6577'];
+  const throwing = o.state === 'throw', done = o.state === 'done' && o.t2 < 1.5;
+  const bob = Math.sin(time * 3) * 0.02 * s;
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ellipse(ctx, p.x, p.y, 0.45 * s, 0.12 * s); ctx.fill();
+  // tail
+  ctx.strokeStyle = fur[0]; ctx.lineWidth = 0.1 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(p.x + 0.25 * s * o.side, p.y - 0.15 * s);
+  ctx.quadraticCurveTo(p.x + 0.65 * s * o.side, p.y - 0.3 * s, p.x + 0.5 * s * o.side + Math.sin(time * 4) * 0.1 * s, p.y - 0.75 * s); ctx.stroke();
+  // body
+  ctx.fillStyle = fur[0]; ellipse(ctx, p.x, p.y - 0.38 * s + bob, 0.32 * s, 0.4 * s); ctx.fill();
+  ctx.strokeStyle = fur[1]; ctx.lineWidth = Math.max(1, 0.04 * s);
+  for (const k of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(p.x - 0.25 * s, p.y - (0.4 + k * 0.12) * s + bob); ctx.lineTo(p.x - 0.1 * s, p.y - (0.38 + k * 0.12) * s + bob); ctx.stroke(); }
+  ctx.fillStyle = '#fff3e6'; ellipse(ctx, p.x, p.y - 0.3 * s + bob, 0.16 * s, 0.22 * s); ctx.fill();
+  // arm: raised holding a milk carton while winding up, waving after the throw
+  const hy = p.y - 0.95 * s + bob, ax = p.x - o.side * 0.3 * s;
+  if (throwing || done) {
+    const ang = throwing ? -1.2 - o.t2 * 3 : -0.6 + Math.sin(time * 14) * 0.4;
+    const hx = ax + Math.cos(ang) * 0.4 * s * -o.side, hyy = p.y - 0.55 * s + Math.sin(ang) * 0.4 * s;
+    ctx.strokeStyle = fur[0]; ctx.lineWidth = 0.11 * s;
+    ctx.beginPath(); ctx.moveTo(ax, p.y - 0.55 * s); ctx.lineTo(hx, hyy); ctx.stroke();
+    if (throwing) drawCarton(hx, hyy - 0.1 * s, s * 0.8, o.t2 * 4);
+  }
+  // head
+  ctx.fillStyle = fur[0];
+  for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(p.x + d * 0.24 * s, hy - 0.05 * s); ctx.lineTo(p.x + d * 0.3 * s, hy - 0.38 * s); ctx.lineTo(p.x + d * 0.06 * s, hy - 0.2 * s); ctx.closePath(); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(p.x, hy, 0.27 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffb3c6'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(p.x + d * 0.22 * s, hy - 0.12 * s); ctx.lineTo(p.x + d * 0.26 * s, hy - 0.3 * s); ctx.lineTo(p.x + d * 0.12 * s, hy - 0.18 * s); ctx.closePath(); ctx.fill(); }
+  // cheeky eyes (half-closed and sly), nose, grin, whiskers
+  for (const d of [-1, 1]) {
+    ctx.fillStyle = '#c6f432'; ellipse(ctx, p.x + d * 0.1 * s, hy - 0.03 * s, 0.065 * s, 0.05 * s); ctx.fill();
+    ctx.fillStyle = '#1b1b1b'; ellipse(ctx, p.x + d * 0.1 * s, hy - 0.03 * s, 0.018 * s, 0.045 * s); ctx.fill();
+    ctx.strokeStyle = fur[1]; ctx.lineWidth = Math.max(1, 0.03 * s);
+    ctx.beginPath(); ctx.moveTo(p.x + d * 0.17 * s, hy - 0.1 * s); ctx.lineTo(p.x + d * 0.03 * s, hy - 0.06 * s); ctx.stroke();
+  }
+  ctx.fillStyle = '#ff7aa2'; ctx.beginPath(); ctx.moveTo(p.x - 0.035 * s, hy + 0.05 * s); ctx.lineTo(p.x + 0.035 * s, hy + 0.05 * s); ctx.lineTo(p.x, hy + 0.09 * s); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#3b2a20'; ctx.lineWidth = Math.max(1, 0.025 * s);
+  ctx.beginPath(); ctx.moveTo(p.x - 0.1 * s, hy + 0.1 * s); ctx.quadraticCurveTo(p.x, hy + (done ? 0.2 : 0.15) * s, p.x + 0.1 * s, hy + 0.1 * s); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  for (const d of [-1, 1]) for (const k of [-1, 1]) { ctx.beginPath(); ctx.moveTo(p.x + d * 0.12 * s, hy + 0.08 * s); ctx.lineTo(p.x + d * 0.34 * s, hy + (0.05 + k * 0.05) * s); ctx.stroke(); }
+  if (done) outlinedText(ctx, 'Hee hee!', p.x, hy - 0.55 * s, Math.round(0.26 * s), '#ff9f1c', '#ffffff');
+}
+function drawCarton(x, y, s, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(-0.12 * s, -0.16 * s, 0.24 * s, 0.32 * s);
+  ctx.fillStyle = '#2f8cff'; ctx.fillRect(-0.12 * s, -0.02 * s, 0.24 * s, 0.1 * s);
+  ctx.beginPath(); ctx.moveTo(-0.12 * s, -0.16 * s); ctx.lineTo(0, -0.27 * s); ctx.lineTo(0.12 * s, -0.16 * s); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#9aa5b5'; ctx.lineWidth = 1; ctx.strokeRect(-0.12 * s, -0.16 * s, 0.24 * s, 0.32 * s);
+  ctx.restore();
+}
+function drawMilk(o) {
+  const p = P(o.x, o.y, o.z), g = P(o.x, 0, o.z);
+  if (!p) return;
+  if (g) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ellipse(ctx, g.x, g.y, 0.3 * g.s, 0.09 * g.s); ctx.fill(); }
+  drawCarton(p.x, p.y, p.s * 1.5, o.u * 9);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';      // a trail of milk drips
+  for (let k = 1; k <= 3; k++) { const q = P(o.x - (o.x1 - o.x0) * 0.04 * k, o.y + 0.1 * k, o.z - (o.z1 - o.z0) * 0.04 * k); if (q) { ctx.beginPath(); ctx.arc(q.x, q.y, 0.06 * q.s, 0, Math.PI * 2); ctx.fill(); } }
+}
+function drawPuddle(o) {
+  const c = P(o.x, 0.01, o.z + o.d / 2);
+  if (!c) return;
+  const a = P(o.x + o.rx, 0.01, o.z + o.d / 2), b = P(o.x, 0.01, o.z + o.d);
+  const rx = a ? a.x - c.x : o.rx * c.s, ry = b ? c.y - b.y : o.d / 2 * c.s * 0.3;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ellipse(ctx, c.x, c.y, rx, Math.max(2, ry)); ctx.fill();
+  for (let k = 0; k < 6; k++) {                 // splashy blobs round the edge
+    const ang = k * 1.047 + o.seed;
+    ellipse(ctx, c.x + Math.cos(ang) * rx * 0.85, c.y + Math.sin(ang) * ry * 0.85, rx * 0.22, Math.max(1.5, ry * 0.25)); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(200,225,255,0.6)'; ellipse(ctx, c.x - rx * 0.25, c.y - ry * 0.2, rx * 0.35, Math.max(1, ry * 0.25)); ctx.fill();
+}
 function drawBanana(o) {
   const p = P(o.x, 0.02, o.z);
   if (!p) return;
@@ -1555,6 +1704,9 @@ function drawRunScene() {
     } else if (o.t === 'laser') items.push({ z: o.z, f: () => drawLaser(o) });
     else if (o.t === 'spin') items.push({ z: o.z, f: () => drawSpin(o) });
     else if (o.t === 'spikes') items.push({ z: o.z + o.d + 0.5, f: () => drawSpikes(o) });
+    else if (o.t === 'cat') items.push({ z: o.z, f: () => drawCat(o) });
+    else if (o.t === 'milk' && !o.landed) items.push({ z: o.z, f: () => drawMilk(o) });
+    else if (o.t === 'puddle') items.push({ z: o.z + o.d + 0.6, f: () => drawPuddle(o) });
     else if (o.t === 'banana' && !o.taken) items.push({ z: o.z, f: () => drawBanana(o) });
     else if (o.t === 'snack' && !o.taken) items.push({ z: o.z, f: () => drawSnack(o) });
     else if (o.t === 'hole') items.push({ z: o.z + o.d + 0.6, f: () => drawHole(o) });
@@ -1572,8 +1724,9 @@ function drawRunScene() {
         const air = airAt(z), p = P(m.x, air, z);
         if (!p) return;
         if (air > 0.05) { const g = P(m.x, 0, z); if (g) { ctx.fillStyle = 'rgba(0,0,0,0.15)'; ellipse(ctx, g.x, g.y, 0.18 * g.s, 0.06 * g.s); ctx.fill(); } }
-        if (m.spinT > 0) {
-          ctx.save(); ctx.translate(p.x, p.y - 0.25 * p.s); ctx.rotate(m.spinT * 14); ctx.translate(-p.x, -(p.y - 0.25 * p.s));
+        if (m.spinT > 0 || m.slipT > 0) {
+          const ang = m.spinT > 0 ? m.spinT * 14 : Math.sin(time * 14 + m.ph) * 0.6;
+          ctx.save(); ctx.translate(p.x, p.y - 0.25 * p.s); ctx.rotate(ang); ctx.translate(-p.x, -(p.y - 0.25 * p.s));
           drawPuppy(ctx, p.x, p.y, p.s, m.coat, m.spot, m.ph, false); ctx.restore();
         } else drawPuppy(ctx, p.x, p.y, p.s, m.coat, m.spot, m.ph, air < 0.05);
       } });
@@ -1605,8 +1758,9 @@ function drawRunScene() {
     items.push({ z: player.z, f: () => {
       const air = player.jump || 0, p = P(player.x, air, player.z);
       if (air > 0.05) { const g = P(player.x, 0, player.z); if (g) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ellipse(ctx, g.x, g.y, 0.45 * g.s, 0.14 * g.s); ctx.fill(); } }
-      if (p && player.spinA) {
-        ctx.save(); ctx.translate(p.x, p.y - 0.5 * p.s); ctx.rotate(player.spinA); ctx.translate(-p.x, -(p.y - 0.5 * p.s));
+      if (p && (player.spinA || player.slipT > 0)) {
+        const ang = player.spinA || Math.sin(time * 12) * 0.35;
+        ctx.save(); ctx.translate(p.x, p.y - 0.5 * p.s); ctx.rotate(ang); ctx.translate(-p.x, -(p.y - 0.5 * p.s));
         drawDogBack(ctx, p.x, p.y, p.s, false); ctx.restore();
       } else if (p) drawDogBack(ctx, p.x, p.y, p.s, false);
     } });
