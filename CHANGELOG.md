@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 13 November 2026
 
+- **Whoosh!** When you go fast, white wind streaks rush past the sides of the screen, more and more on the speedy levels and near the finish. The hot dog's paws also kick up little puffs of dust as he runs.
 - **Faster and faster!** Each level is a little quicker than the one before. Level 1 is nice and gentle, and by level 20 you're zooming!
 - **Don't lose all your puppies!** If every puppy gets lost, the hot dog says "Oh no!" and you have to start that level again.
 - **Bye bye arrows.** The flying arrows have gone. They were hard to see and not much fun.

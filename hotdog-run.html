@@ -419,7 +419,7 @@ function makeLevel(lv) {
 let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
-let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [];
+let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [], puffs = [], puffT = 0;
 // Jumps happen at a spot on the road: the hot dog takes off there and each puppy
 // jumps when it reaches the same spot, so the whole pack hops over the same thing.
 let jumps = [];
@@ -446,7 +446,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: levelSpeed(lv), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; leashT = 0; armour = 0;
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0;
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
   if (save.inv.biscuits > 0) { save.inv.biscuits--; armour += 10; addFloat(0, 3.4, 5, 'Biscuits +10 🛡', '#ffb703'); }
@@ -1052,6 +1052,16 @@ function updateEffects(dt) {
     p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vy -= 12 * dt;
   }
   parts = parts.filter(p => p.t < 0.8);
+  // little dust puffs kicked up by the hot dog's paws (more often when running fast)
+  if (state === 'run' && player) {
+    puffT -= dt;
+    if (puffT <= 0 && (player.jump || 0) < 0.1) {
+      puffT = 0.11 - Math.min(0.05, (player.speed - 10) * 0.006);
+      puffs.push({ x: player.x + (Math.random() - 0.5) * 0.5, z: player.z - 0.4, t: 0 });
+    }
+  }
+  for (const pf of puffs) pf.t += dt;
+  puffs = puffs.filter(pf => pf.t < 0.6);
   for (const f of fallers) f.t += dt;
   fallers = fallers.filter(f => f.t < 0.7);
   shake = Math.max(0, shake - dt);
@@ -1726,6 +1736,13 @@ function drawRunScene() {
 
   drawVerge(near, far);
 
+  for (const pf of puffs) {
+    const q = P(pf.x, 0.05, pf.z);
+    if (!q) continue;
+    ctx.fillStyle = `rgba(214,184,130,${0.45 * (1 - pf.t / 0.6)})`;
+    ellipse(ctx, q.x, q.y, (0.12 + pf.t * 0.6) * q.s, (0.06 + pf.t * 0.25) * q.s); ctx.fill();
+  }
+
   // Everything that stands up, far to near
   const items = [];
   for (let k = Math.floor(near / 8); k < far / 8; k++) {
@@ -1849,10 +1866,29 @@ function drawRunScene() {
   }
   ctx.restore();
 
-  if (player && level && state === 'run') drawHud(player.z / level.end);
+  if (player && level && state === 'run') { drawSpeedLines(); drawHud(player.z / level.end); }
 }
 
 // Sun, drifting clouds and two layers of rolling hills behind the road
+// Wind streaks whooshing past the sides of the screen: more and faster as the levels speed up,
+// and extra near the end of a level
+function drawSpeedLines() {
+  const near = clamp((player.z / level.end - 0.7) / 0.3, 0, 1);
+  const k = clamp((player.speed - 9.5) / 8.5 + near * 0.35, 0, 1);
+  if (k < 0.05) return;
+  const n = Math.round(4 + 12 * k), len = 50 + 90 * k;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const h = Math.abs(Math.sin(i * 91.7) * 43758.5453) % 1;
+    const left = i % 2 === 0;
+    const x = left ? W * (0.02 + h * 0.13) : W * (0.85 + h * 0.13);
+    const y = ((i * 173 + time * (700 + 900 * k) * (0.7 + h * 0.6)) % (H + len * 2)) - len;
+    if (y < HOR) continue;
+    ctx.strokeStyle = `rgba(255,255,255,${0.2 + 0.45 * k})`;
+    ctx.lineWidth = 2 + 2.5 * k * h;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (left ? -1 : 1) * len * 0.22, y + len); ctx.stroke();
+  }
+}
 function drawSkyScenery() {
   const sx = W * 0.66, sy = HOR * 0.5, sr = Math.max(14, HOR * 0.15);
   const sg = ctx.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 2.6);
