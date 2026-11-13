@@ -4,6 +4,9 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 13 November 2026
 
+- **Faster and faster!** Each level is a little quicker than the one before. Level 1 is nice and gentle, and by level 20 you're zooming!
+- **Don't lose all your puppies!** If every puppy gets lost, the hot dog says "Oh no!" and you have to start that level again.
+- **Bye bye arrows.** The flying arrows have gone. They were hard to see and not much fun.
 - **Lost puppies!** Some little puppies have got lost and are waiting on the road, wagging their tails with a pink heart above them. Run into them and they join your pack, with a happy yip. That's up to 3 extra puppies each time!
 - **Shiny glass squares!** The blue squares now look like real see-through glass, with a sparkle of light that sweeps across them. Minus numbers have a red edge so you can spot the bad ones quickly. When you run through a square it smashes into sparkly blue pieces!
 - **Watch out for the cheeky cats!** From level 2, naughty cats sit by the road. When you get close they shout "Meow!", throw a carton of milk, and laugh "Hee hee!". If you run through the milk puddle, the hot dog and his puppies slip and slide all over the place. Don't worry, milk never hurts anyone. Steer round it or jump over it!
