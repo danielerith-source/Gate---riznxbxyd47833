@@ -65,6 +65,11 @@
     border-radius: 12px; background: rgba(255,255,255,0.85); color: #1d2433; font-size: 18px;
   }
   #musicBtn { top: calc(108px + env(safe-area-inset-top, 0px)); }
+  #pauseBtn {
+    position: fixed; top: calc(156px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px));
+    width: 40px; height: 40px; padding: 0; border-radius: 12px; z-index: 5;
+    background: rgba(255,255,255,0.85); color: #1d2433; font-size: 16px;
+  }
   #soundBtn, #musicBtn, #quitBtn, #jumpBtn { z-index: 5; }
   #jumpBtn {
     position: fixed; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -106,6 +111,7 @@
 <body>
 <canvas id="game"></canvas>
 <button id="quitBtn" class="hidden" aria-label="Back to menu">✕</button>
+<button id="pauseBtn" class="hidden" aria-label="Pause">⏸</button>
 <button id="soundBtn" class="hidden" aria-label="Turn woofs and sounds off">🔊</button>
 <button id="musicBtn" class="hidden" aria-label="Turn music off">🎵</button>
 <button id="jumpBtn" class="hidden" aria-label="Jump">JUMP</button>
@@ -126,7 +132,7 @@
     <button class="secondary" id="storeBtn">🎀 Doggie Store</button>
     <div class="row"><button class="arrow" id="soundBtn2" aria-label="Turn woofs and sounds off">🔊</button><button class="arrow" id="musicBtn2" aria-label="Turn music off">🎵</button></div>
     <ul class="how">
-      <li>Drag left and right (or use the arrow keys).</li>
+      <li>Drag left and right (or use the arrow keys). Tap ⏸ to pause.</li>
       <li>Run through a blue square to change your crowd: <b>+</b> adds puppies, <b>−</b> takes them away, <b>×</b> multiplies (from level 11). Woof!</li>
       <li>Nothing can hurt the hot dog, but any puppy hit by a saw, laser, spikes or other trap is lost. Lose them all and you have to start the level again!</li>
       <li>Laser walls: run through the green gap. Spikes flash red before they rise. The hot dog hops over holes, but puppies fall in!</li>
@@ -153,6 +159,15 @@
     <div class="coins"><span class="coin-dot"></span><span id="storeCoins">0</span> coins</div>
     <div class="shop-list store-list" id="storeList"></div>
     <button class="secondary" id="storeClose">Back</button>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card">
+    <h2>Paused</h2>
+    <p class="sub">Take a break! Your hot dog and puppies will wait for you.</p>
+    <button class="primary" id="resumeBtn">Carry on!</button>
+    <button class="secondary" id="pauseMenuBtn">Menu</button>
   </div>
 </div>
 
@@ -465,6 +480,8 @@ function startLevel(lv) {
   document.getElementById('result').classList.add('hidden');
   document.getElementById('quitBtn').classList.remove('hidden');
   document.getElementById('jumpBtn').classList.remove('hidden');
+  document.getElementById('pauseBtn').classList.remove('hidden');
+  document.getElementById('pause').classList.add('hidden');
   updateLeashBtn(); updateFloatButtons();
 }
 
@@ -763,7 +780,7 @@ function updateSoundBtn() {
 }
 // The floating sound buttons only show during a level; on menu screens they sit inside the menu card
 function updateFloatButtons() {
-  const show = state === 'run' || state === 'ladder';
+  const show = state === 'run' || state === 'ladder' || state === 'paused';
   document.getElementById('soundBtn').classList.toggle('hidden', !show);
   document.getElementById('musicBtn').classList.toggle('hidden', !show);
 }
@@ -772,6 +789,7 @@ function updateFloatButtons() {
 const keys = { left: false, right: false };
 let drag = null;
 window.addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { state === 'paused' ? resumeGame() : pauseGame(); }
   if (e.key === 'l' || e.key === 'L') useLeash();
   if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); doJump(); }
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
@@ -1092,6 +1110,7 @@ function updateEffects(dt) {
 function startLadder() {
   state = 'ladder';
   document.getElementById('jumpBtn').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('hidden');
   document.getElementById('leashBtn').classList.add('hidden');
   if (lossAcc > 0) lossAcc = 0;
   lad = { step: 0, dogStep: 0, t: 0.8, cam: 0, done: false, doneT: 0, top: false, shown: false, pops: [], coins: [], pulse: 0, slobber: [], licked: -1 };
@@ -1126,7 +1145,7 @@ function updateLadder(dt) {
 function loseLevel() {
   save.coins += runCoins; store.set('hotdog-run-save', save);   // you keep the road coins you grabbed
   state = 'result'; lad = null;
-  ['quitBtn', 'jumpBtn', 'leashBtn'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  ['quitBtn', 'jumpBtn', 'leashBtn', 'pauseBtn'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('resTitle').textContent = 'Oh no!';
   document.getElementById('resSub').textContent = 'All the puppies got lost! Start the level again. Pick the good blue squares and keep your puppies safe.';
   document.getElementById('resCoins').parentElement.style.display = 'none';
@@ -1147,6 +1166,7 @@ function finishLevel() {
   state = 'result';
   document.getElementById('quitBtn').classList.add('hidden');
   document.getElementById('jumpBtn').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('hidden');
   document.getElementById('leashBtn').classList.add('hidden');
   document.getElementById('resTitle').textContent = top ? 'Treasure!' : 'So close!';
   document.getElementById('resSub').textContent = top
@@ -1807,7 +1827,7 @@ function drawRunScene() {
     else if (o.t === 'hammer') items.push({ z: o.z, f: () => drawHammer(o) });
     else if (o.t === 'boulder' && !o.gone) items.push({ z: o.z, f: () => drawBoulder(o) });
   }
-  if (player && state === 'run') {
+  if (player && (state === 'run' || state === 'paused')) {
     for (const m of members) {
       const z = player.z + m.oz;
       items.push({ z, f: () => {
@@ -1866,7 +1886,7 @@ function drawRunScene() {
   }
   ctx.globalAlpha = 1;
 
-  if (player && state === 'run') {
+  if (player && (state === 'run' || state === 'paused')) {
     // crowd counter bubble
     const p = P(player.x, 2.2 + (player.jump || 0), player.z);
     if (p) {
@@ -1898,7 +1918,8 @@ function drawRunScene() {
   }
   ctx.restore();
 
-  if (player && level && state === 'run') { drawSpeedLines(); drawHud(player.z / level.end); }
+  if (player && level && (state === 'run' || state === 'paused')) { drawSpeedLines(); drawHud(player.z / level.end); }
+  if (state === 'paused' && resumeT > 0) outlinedText(ctx, String(Math.ceil(resumeT)), W / 2, H * 0.42, Math.round(Math.min(W, H) * 0.3), '#ffffff', '#ff7a1a');
 }
 
 // Sun, drifting clouds and two layers of rolling hills behind the road
@@ -2215,6 +2236,10 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now; time += dt;
   if (state === 'run') { updateRun(dt); updateEffects(dt); drawRunScene(); }
+  else if (state === 'paused') {                // frozen; after "Carry on!" count 3, 2, 1 then go
+    if (resumeT > 0) { resumeT -= dt; if (resumeT <= 0) { state = 'run'; setRunButtons(true); } }
+    drawRunScene();
+  }
   else if (state === 'ladder' || (state === 'result' && lad)) { if (state === 'ladder') updateLadder(dt); drawLadderScene(dt); }
   else { camZ += dt * 5; drawRunScene(); }
   if (state === 'menu') drawPreview();
@@ -2241,6 +2266,24 @@ function updateLeashBtn() {
   b.classList.toggle('hidden', !(state === 'run' && save.inv.leash > 0));
   document.getElementById('leashCount').textContent = '×' + save.inv.leash;
 }
+// Pause: tap ⏸ (or press P / Escape). The game also pauses itself if you switch away.
+let resumeT = 0;
+function setRunButtons(on) {
+  ['pauseBtn', 'jumpBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', !on));
+  updateLeashBtn();
+}
+function pauseGame() {
+  if (state !== 'run') return;
+  state = 'paused'; resumeT = 0; drag = null; keys.left = keys.right = false;
+  setRunButtons(false);
+  document.getElementById('pause').classList.remove('hidden');
+}
+function resumeGame() {
+  if (state !== 'paused') return;
+  document.getElementById('pause').classList.add('hidden');
+  resumeT = 3;                                   // 3, 2, 1… then back to running
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 function useLeash() {
   if (state !== 'run' || save.inv.leash <= 0 || leashT > 0) return;
   save.inv.leash--; store.set('hotdog-run-save', save);
@@ -2318,6 +2361,7 @@ function showMenu() {
   document.getElementById('result').classList.add('hidden');
   document.getElementById('quitBtn').classList.add('hidden');
   document.getElementById('jumpBtn').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('hidden');
   document.getElementById('leashBtn').classList.add('hidden');
   document.getElementById('menu').classList.remove('hidden');
   refreshMenu(); updateFloatButtons();
@@ -2343,6 +2387,9 @@ document.getElementById('musicBtn').onclick = () => {
 };
 updateSoundBtn();
 document.getElementById('quitBtn').onclick = showMenu;
+document.getElementById('pauseBtn').onclick = pauseGame;
+document.getElementById('resumeBtn').onclick = () => { initAudio(); resumeGame(); };
+document.getElementById('pauseMenuBtn').onclick = () => { document.getElementById('pause').classList.add('hidden'); showMenu(); };
 document.getElementById('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); doJump(); });
 document.getElementById('resMain').onclick = e => { initAudio(); const n = +e.currentTarget.dataset.next; menuLevel = n; startLevel(n); };
 document.getElementById('resRetry').onclick = () => { initAudio(); startLevel(level.lv); };

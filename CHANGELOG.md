@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 14 November 2026
 
+- **Pause button!** Tap ⏸ to take a break whenever you like. The game also pauses by itself if you put the tablet down or switch to something else. When you tap "Carry on!", a big 3, 2, 1 counts you back in so you're ready.
 - **A grand treasure tower!** The tower at the end is now made of real stone bricks, with little glowing windows and castle battlements on top. Golden rays shine from behind the treasure chest, sparkles twinkle round it, clouds float by as you climb, and when you reach the top, confetti rains down!
 - **Gold coins on the road!** Shiny spinning coins now sit along the road. Steer through a line of them to grab them all, and when they float up in a high arch, press JUMP to reach the top ones. You keep the coins you grab even if you lose the level. Spend them in the Shop or the Doggie Store!
 
