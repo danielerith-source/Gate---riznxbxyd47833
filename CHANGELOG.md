@@ -2,6 +2,10 @@
 
 Every few hours the game gets one little improvement. The newest is at the top.
 
+## 14 November 2026
+
+- **Gold coins on the road!** Shiny spinning coins now sit along the road. Steer through a line of them to grab them all, and when they float up in a high arch, press JUMP to reach the top ones. You keep the coins you grab even if you lose the level. Spend them in the Shop or the Doggie Store!
+
 ## 13 November 2026
 
 - **Whoosh!** When you go fast, white wind streaks rush past the sides of the screen, more and more on the speedy levels and near the finish. The hot dog's paws also kick up little puffs of dust as he runs.
