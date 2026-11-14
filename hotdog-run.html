@@ -1286,39 +1286,64 @@ function drawBackNeck(c, x, hy, s) {               // scarf / bow tie, seen from
 function drawDogBack(c, x, y, s, blink) {
   const L = 1.25 * s, Wd = 0.62 * s, cy = y - 0.5 * s;
   const leg = Math.sin(time * 18);
+  const ow = Math.max(1, 0.035 * s);                       // soft dark outline used all over
   c.save();
   if (blink) c.globalAlpha = 0.45;
   c.fillStyle = 'rgba(0,0,0,0.22)'; ellipse(c, x, y, 0.5 * s, 0.16 * s); c.fill();
-  // little legs
-  c.fillStyle = '#8a4b24';
+  // little legs with paler paws
   const legs = [[-1, -0.3, 1], [1, -0.3, -1], [-1, 0.3, -1], [1, 0.3, 1]];
-  for (const [lx, ly, p] of legs) { ellipse(c, x + lx * Wd * 0.58, cy + ly * L * 0.6 + p * leg * 0.06 * s, 0.12 * s, 0.1 * s); c.fill(); }
-  // waggy tail
-  c.strokeStyle = '#b5562c'; c.lineWidth = 0.09 * s; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(x, cy + L * 0.48);
-  c.quadraticCurveTo(x + Math.sin(time * 20) * 0.3 * s, cy + L * 0.58, x + Math.sin(time * 20 + 0.8) * 0.25 * s, cy + L * 0.5 + 0.32 * s);
-  c.stroke();
-  // bun
-  c.fillStyle = '#f0b860'; rr(c, x - Wd / 2, cy - L * 0.4, Wd, L * 0.8, Wd * 0.45); c.fill();
-  c.strokeStyle = '#c98a3a'; c.lineWidth = Math.max(1, 0.04 * s); c.stroke();
-  // sausage body
-  c.fillStyle = '#d9562e'; rr(c, x - Wd * 0.3, cy - L * 0.5, Wd * 0.6, L, Wd * 0.3); c.fill();
-  c.fillStyle = 'rgba(255,255,255,0.25)'; rr(c, x - Wd * 0.18, cy - L * 0.44, Wd * 0.12, L * 0.8, Wd * 0.06); c.fill();
-  // mustard zigzag
-  c.strokeStyle = '#ffd60a'; c.lineWidth = Math.max(1.2, 0.07 * s); c.lineJoin = 'round';
-  c.beginPath();
-  for (let i = 0; i <= 8; i++) {
-    const yy = cy - L * 0.36 + (L * 0.72) * i / 8, xx = x + (i % 2 ? 1 : -1) * Wd * 0.16;
-    i ? c.lineTo(xx, yy) : c.moveTo(xx, yy);
+  for (const [lx, ly, p] of legs) {
+    const lxp = x + lx * Wd * 0.58, lyp = cy + ly * L * 0.6 + p * leg * 0.06 * s;
+    c.fillStyle = '#8a4b24'; ellipse(c, lxp, lyp, 0.12 * s, 0.1 * s); c.fill();
+    c.fillStyle = '#d9a57a'; ellipse(c, lxp + lx * 0.03 * s, lyp + 0.04 * s, 0.07 * s, 0.05 * s); c.fill();
   }
-  c.stroke();
+  // waggy tail with a pale tip
+  const tx = x + Math.sin(time * 20 + 0.8) * 0.25 * s, ty = cy + L * 0.5 + 0.32 * s;
+  c.strokeStyle = '#5c2a10'; c.lineWidth = 0.09 * s + ow * 2; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x, cy + L * 0.48); c.quadraticCurveTo(x + Math.sin(time * 20) * 0.3 * s, cy + L * 0.58, tx, ty); c.stroke();
+  c.strokeStyle = '#b5562c'; c.lineWidth = 0.09 * s;
+  c.beginPath(); c.moveTo(x, cy + L * 0.48); c.quadraticCurveTo(x + Math.sin(time * 20) * 0.3 * s, cy + L * 0.58, tx, ty); c.stroke();
+  c.fillStyle = '#f2d2a9'; c.beginPath(); c.arc(tx, ty, 0.05 * s, 0, Math.PI * 2); c.fill();
+  // toasted bun: golden in the middle, browner at the edges
+  const bg = c.createLinearGradient(x - Wd / 2, 0, x + Wd / 2, 0);
+  bg.addColorStop(0, '#c98a3a'); bg.addColorStop(0.3, '#f4c271'); bg.addColorStop(0.7, '#f4c271'); bg.addColorStop(1, '#c98a3a');
+  c.fillStyle = bg; rr(c, x - Wd / 2, cy - L * 0.4, Wd, L * 0.8, Wd * 0.45); c.fill();
+  c.strokeStyle = '#8a5a22'; c.lineWidth = ow; c.stroke();
+  c.fillStyle = 'rgba(255,255,255,0.18)'; rr(c, x - Wd * 0.42, cy - L * 0.34, Wd * 0.1, L * 0.6, Wd * 0.05); c.fill();
+  // sausage body: rounded and shiny, with a few grill marks
+  const sg = c.createLinearGradient(x - Wd * 0.3, 0, x + Wd * 0.3, 0);
+  sg.addColorStop(0, '#a83a1c'); sg.addColorStop(0.45, '#e2643a'); sg.addColorStop(1, '#a83a1c');
+  c.fillStyle = sg; rr(c, x - Wd * 0.3, cy - L * 0.5, Wd * 0.6, L, Wd * 0.3); c.fill();
+  c.strokeStyle = '#6e240f'; c.lineWidth = ow; c.stroke();
+  c.strokeStyle = 'rgba(80,25,10,0.45)'; c.lineWidth = Math.max(1, 0.03 * s);
+  for (const gy of [-0.22, 0.05, 0.3]) { c.beginPath(); c.moveTo(x - Wd * 0.22, cy + L * gy - 0.03 * s); c.lineTo(x + Wd * 0.22, cy + L * gy + 0.03 * s); c.stroke(); }
+  c.fillStyle = 'rgba(255,255,255,0.32)'; rr(c, x - Wd * 0.17, cy - L * 0.44, Wd * 0.1, L * 0.78, Wd * 0.05); c.fill();
+  // ketchup and mustard zigzags
+  for (const [col, off, wide] of [['#c1121f', 0.05, 0.085], ['#ffd60a', -0.03, 0.07]]) {
+    c.strokeStyle = col; c.lineWidth = Math.max(1.2, wide * s); c.lineJoin = 'round'; c.lineCap = 'round';
+    c.beginPath();
+    for (let i = 0; i <= 8; i++) {
+      const yy = cy - L * 0.36 + (L * 0.72) * i / 8 + off * s, xx = x + (i % 2 ? 1 : -1) * Wd * 0.16;
+      i ? c.lineTo(xx, yy) : c.moveTo(xx, yy);
+    }
+    c.stroke();
+  }
   drawBackBody(c, x, cy, L, Wd, s);
-  // head + floppy ears
+  // head with floppy ears (darker outside, pinker inside), a cosy collar
   const hy = cy - L * 0.5 - 0.1 * s;
-  c.fillStyle = '#6b3518';
-  ellipse(c, x - 0.26 * s, hy + 0.05 * s + Math.sin(time * 18) * 0.02 * s, 0.1 * s, 0.2 * s); c.fill();
-  ellipse(c, x + 0.26 * s, hy + 0.05 * s - Math.sin(time * 18) * 0.02 * s, 0.1 * s, 0.2 * s); c.fill();
-  c.fillStyle = '#c4672f'; c.beginPath(); c.arc(x, hy, 0.24 * s, 0, Math.PI * 2); c.fill();
+  for (const d of [-1, 1]) {
+    const ey = hy + 0.05 * s + d * Math.sin(time * 18) * -0.02 * s;
+    c.fillStyle = '#5a2a12'; ellipse(c, x + d * 0.26 * s, ey, 0.11 * s, 0.21 * s); c.fill();
+    c.fillStyle = '#8a4b24'; ellipse(c, x + d * 0.255 * s, ey + 0.02 * s, 0.06 * s, 0.14 * s); c.fill();
+  }
+  const hg = c.createRadialGradient(x - 0.07 * s, hy - 0.08 * s, 0.02 * s, x, hy, 0.24 * s);
+  hg.addColorStop(0, '#dd8045'); hg.addColorStop(1, '#b45a26');
+  c.fillStyle = hg; c.beginPath(); c.arc(x, hy, 0.24 * s, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#6e2f12'; c.lineWidth = ow; c.stroke();
+  if (!wearing('neck')) {
+    c.fillStyle = '#2f8cff'; rr(c, x - 0.2 * s, hy + 0.17 * s, 0.4 * s, 0.07 * s, 0.035 * s); c.fill();
+    c.fillStyle = '#ffd23f'; c.beginPath(); c.arc(x, hy + 0.26 * s, 0.045 * s, 0, Math.PI * 2); c.fill();
+  }
   drawBackNeck(c, x, hy, s);
   drawHat(c, x, hy, 0.24 * s, wearing('head'));
   c.restore();

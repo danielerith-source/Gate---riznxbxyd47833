@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 14 November 2026
 
+- **A smarter-looking hot dog!** Our hero now has a toasty golden bun, a shiny sausage with ketchup AND mustard, cute floppy ears, little paw pads, a white tip on his waggy tail, and a blue collar with a gold tag.
 - **Ready, steady, GO!** Every level now starts with a big 3, 2, 1 countdown with little beeps, then a green GO! so you're ready before the hot dog starts running.
 - **A better progress bar!** At the top of the screen, a little hot dog now runs along the bar towards a treasure chest, so you can see how far you've got. Blue dots show where the squares are coming up, and gold dots mean a Power Leash!
 - **A less crowded road.** Levels 1 to 5 are now nice and simple, with no extras. From level 6, each level has just one surprise, taking turns: banana skins, lost puppies, or the cheeky milk cat. There are fewer coin trails too.
