@@ -46,7 +46,7 @@
   #buyBtn.ready { background: var(--accent); color: #2a2000; box-shadow: 0 0 18px rgba(255,210,63,0.6); }
   #buyBtn:disabled { opacity: 0.45; }
 
-  #buttons { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; }
+  #buttons { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; z-index: 20; }
   #buttons button {
     width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
     background: var(--panel); color: var(--text); font-size: 18px; cursor: pointer;
@@ -597,7 +597,7 @@
   muteBtn.textContent = muted ? '🔇' : '🔊';
   muteBtn.onclick = () => {
     muted = !muted; muteBtn.textContent = muted ? '🔇' : '🔊';
-    if (muted) music.stop(); else if (state === 'play') music.start();
+    if (muted) music.stop(); else if (state === 'play' || state === 'menu') music.start();
     try { localStorage.setItem('sm_muted', muted ? '1' : '0'); } catch (e) {}
   };
   ui.bestHud.textContent = best;
@@ -661,11 +661,17 @@
     previewBoard($('boardPreview'), curBoard(), 110);
     G.charDef = curChar(); G.boardDef = curBoard();
   }
+  // Browsers only allow sound after the first tap or key press, so start the
+  // home-screen music on that first touch.
+  const kickMusic = () => { if (state === 'menu') music.start(); };
+  window.addEventListener('pointerdown', kickMusic);
+  window.addEventListener('keydown', kickMusic);
+
   function goHome() {
     clearTimeout(overTimer);
-    music.stop();
     persist();
     state = 'menu';
+    music.start();   // music keeps playing on the home screen and in the shop
     newGame();
     ui.over.classList.add('hidden'); ui.pause.classList.add('hidden'); ui.shop.classList.add('hidden');
     ui.menu.classList.remove('hidden');
