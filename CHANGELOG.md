@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 14 November 2026
 
+- **A better progress bar!** At the top of the screen, a little hot dog now runs along the bar towards a treasure chest, so you can see how far you've got. Blue dots show where the squares are coming up, and gold dots mean a Power Leash!
 - **A less crowded road.** Levels 1 to 5 are now nice and simple, with no extras. From level 6, each level has just one surprise, taking turns: banana skins, lost puppies, or the cheeky milk cat. There are fewer coin trails too.
 - **New places to run!** The scenery now changes every 5 levels: a sunny meadow (levels 1–5), autumn with orange trees and falling leaves (6–10), a snowy land with snowflakes (11–15), a pink sunset (16–20), and a starry night with the moon (21 and up)!
 - **Pause button!** Tap ⏸ to take a break whenever you like. The game also pauses by itself if you put the tablet down or switch to something else. When you tap "Carry on!", a big 3, 2, 1 counts you back in so you're ready.

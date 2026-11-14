@@ -2041,15 +2041,36 @@ function drawTree(x, z, h) {
 function drawHud(progress) {
   const top = 18, left = 64;
   const bw = Math.min(W - left - 110, 360);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'; rr(ctx, left, top + 22, bw, 10, 5); ctx.fill();
-  ctx.fillStyle = '#ff7a1a'; rr(ctx, left, top + 22, Math.max(10, bw * clamp(progress, 0, 1)), 10, 5); ctx.fill();
+  // progress track: a little hot dog runs along it towards a treasure chest at the end
+  const by = top + 22, tw = bw - 22, pr = clamp(progress, 0, 1);
+  ctx.fillStyle = 'rgba(29,36,51,0.35)'; rr(ctx, left - 2, by - 2, tw + 4, 14, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; rr(ctx, left, by, tw, 10, 5); ctx.fill();
+  const pg = ctx.createLinearGradient(left, 0, left + tw, 0);
+  pg.addColorStop(0, '#ff7a1a'); pg.addColorStop(1, '#ffc531');
+  ctx.fillStyle = pg; rr(ctx, left, by, Math.max(10, tw * pr), 10, 5); ctx.fill();
+  for (const o of objs) {                         // small blue dots show where the squares are
+    if (o.t !== 'gate' || o.x0 > 0 || o.used) continue;
+    const gx = left + tw * clamp(o.z / level.end, 0, 1);
+    ctx.fillStyle = o.op === 'leash' ? '#ffc531' : '#2f8cff';
+    ctx.beginPath(); ctx.arc(gx, by + 5, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+  objs.filter(o => o.t === 'gate' && o.x0 > 0 && o.op === 'leash' && !o.used).forEach(o => { const gx = left + tw * clamp(o.z / level.end, 0, 1); ctx.fillStyle = '#ffc531'; ctx.beginPath(); ctx.arc(gx, by + 5, 2.5, 0, Math.PI * 2); ctx.fill(); });
+  drawChest(ctx, left + tw + 13, by + 5, 18, 0);
+  const mx = left + tw * pr, my = by + 5 - Math.abs(Math.sin(time * 12)) * 2.5;
+  ctx.fillStyle = '#6b3518'; ellipse(ctx, mx - 5, my + 1, 2.6, 4.5); ctx.fill(); ellipse(ctx, mx + 5, my + 1, 2.6, 4.5); ctx.fill();
+  ctx.fillStyle = '#c4672f'; ctx.beginPath(); ctx.arc(mx, my, 6.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#1b1b1b'; ctx.beginPath(); ctx.arc(mx - 2.2, my - 1, 1, 0, Math.PI * 2); ctx.arc(mx + 2.2, my - 1, 1, 0, Math.PI * 2); ctx.fill();
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   outlinedText(ctx, 'LEVEL ' + level.lv, left + 40, top + 6, 16, '#fff', '#1d2433');
   drawCoin(ctx, W - 74, top + 12, 10);
   ctx.font = '900 18px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 3; ctx.strokeStyle = '#1d2433'; ctx.strokeText(String(save.coins + runCoins), W - 58, top + 13);
   ctx.fillStyle = '#fff'; ctx.fillText(String(save.coins + runCoins), W - 58, top + 13);
-  outlinedText(ctx, `Ladder needs ${level.need}`, left + bw / 2, top + 48, 13, '#fff', '#1d2433');
+  ctx.font = '800 12px system-ui, sans-serif';
+  const lt = `Ladder needs ${level.need} puppies`, ltw = ctx.measureText(lt).width + 18;
+  ctx.fillStyle = 'rgba(29,36,51,0.45)'; rr(ctx, left + (bw - ltw) / 2, top + 39, ltw, 19, 9.5); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lt, left + bw / 2, top + 49);
   let y2 = top + 70;
   if (leashT > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)'; rr(ctx, left, y2, bw, 16, 8); ctx.fill();
