@@ -476,7 +476,7 @@ function startLevel(lv) {
   store.set('hotdog-run-save', save);
   syncMembers();
   camZ = player.z - CAM_BACK;
-  state = 'run';
+  state = 'paused'; resumeT = 3;   // every level starts with a 3, 2, 1, GO! countdown
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('result').classList.add('hidden');
   document.getElementById('quitBtn').classList.remove('hidden');
@@ -484,6 +484,7 @@ function startLevel(lv) {
   document.getElementById('pauseBtn').classList.remove('hidden');
   document.getElementById('pause').classList.add('hidden');
   updateLeashBtn(); updateFloatButtons();
+  setRunButtons(false);
 }
 
 function formation(m) {
@@ -835,6 +836,7 @@ function updateRun(dt) {
   const prevZ = player.z;
   player.z += player.speed * dt;
   player.woofT = Math.max(0, player.woofT - dt);
+  goT = Math.max(0, goT - dt);
   camZ = player.z - CAM_BACK;
 
   // Blue squares
@@ -1922,7 +1924,11 @@ function drawRunScene() {
 
   drawWeather(theme(), state === 'paused' ? 0 : 1 / 60);
   if (player && level && (state === 'run' || state === 'paused')) { drawSpeedLines(); drawHud(player.z / level.end); }
-  if (state === 'paused' && resumeT > 0) outlinedText(ctx, String(Math.ceil(resumeT)), W / 2, H * 0.42, Math.round(Math.min(W, H) * 0.3), '#ffffff', '#ff7a1a');
+  if (state === 'paused' && resumeT > 0) {
+    const n = Math.ceil(resumeT), f = resumeT - Math.floor(resumeT);          // each number pops in big, then shrinks a little
+    outlinedText(ctx, String(n), W / 2, H * 0.42, Math.round(Math.min(W, H) * (0.22 + 0.1 * f)), '#ffffff', '#ff7a1a');
+  }
+  if (goT > 0) { ctx.globalAlpha = Math.min(1, goT * 2.5); outlinedText(ctx, 'GO!', W / 2, H * 0.42, Math.round(Math.min(W, H) * 0.24), '#2fd16b', '#ffffff'); ctx.globalAlpha = 1; }
 }
 
 // Sun, drifting clouds and two layers of rolling hills behind the road
@@ -2292,7 +2298,7 @@ function frame(now) {
   last = now; time += dt;
   if (state === 'run') { updateRun(dt); updateEffects(dt); drawRunScene(); }
   else if (state === 'paused') {                // frozen; after "Carry on!" count 3, 2, 1 then go
-    if (resumeT > 0) { resumeT -= dt; if (resumeT <= 0) { state = 'run'; setRunButtons(true); } }
+    if (resumeT > 0 && !document.hidden) { resumeT -= dt; if (resumeT <= 0) { state = 'run'; setRunButtons(true); goT = 0.7; countBeep(true); } else if (Math.ceil(resumeT) !== Math.ceil(resumeT + dt)) countBeep(false); }
     drawRunScene();
   }
   else if (state === 'ladder' || (state === 'result' && lad)) { if (state === 'ladder') updateLadder(dt); drawLadderScene(dt); }
@@ -2322,7 +2328,11 @@ function updateLeashBtn() {
   document.getElementById('leashCount').textContent = '×' + save.inv.leash;
 }
 // Pause: tap ⏸ (or press P / Escape). The game also pauses itself if you switch away.
-let resumeT = 0;
+let resumeT = 0, goT = 0;
+function countBeep(go) {         // little beeps for 3, 2, 1 and a higher one for GO!
+  if (!actx || muted) return;
+  tone(actx.currentTime + 0.01, go ? 84 : 72, go ? 0.3 : 0.12, 'square', 0.18, sfxBus);
+}
 function setRunButtons(on) {
   ['pauseBtn', 'jumpBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', !on));
   updateLeashBtn();
