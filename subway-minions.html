@@ -354,12 +354,19 @@
   };
 
 
-  // ---------- Background music: an original funky loop, synthesised live ----------
+  // ---------- Background music: "Baby Blanky", an original beat, synthesised live ----------
+  // 12-bar cycle: 8 bars of verse groove, then 4 bars of refrain with the
+  // "ba-by blan-ky" hook on top.
   const music = (() => {
     const BPM = 104, STEP = 60 / BPM / 4;             // 16th notes
-    const ROOTS = [45, 41, 48, 43];                   // A2, F2, C3, G2 (Am - F - C - G)
-    const MINOR = [true, false, false, false];
-    const BASS = [0, null, 0, null, 12, null, 10, 7, 0, null, 3, null, 5, 7, null, 12];
+    const CHORDS = [[50, 53, 57], [46, 50, 53], [43, 46, 50], [45, 49, 52]];   // Dm - Bb - Gm - A
+    const BASSN = [38, 34, 31, 33];
+    const KICK  = [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,1];
+    const SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+    const HAT   = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1];
+    const STAB  = [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,0,1,0];
+    const BASSP = [1,0,0,0, 0,0,1,0, 0,0,1,0, 0,0,0,0];
+    const HOOK  = [74,0,74,0, 77,0,74,0, 74,0,74,0, 77,0,72,0];
     let timer = null, next = 0, step = 0, bus = null, noise = null;
     const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
     function ensure() {
@@ -398,16 +405,13 @@
     }
     function schedule() {
       while (next < audioCtx.currentTime + 0.15) {
-        const s = step % 16, bar = Math.floor(step / 16) % 4, root = ROOTS[bar];
-        if (s === 0 || s === 7 || s === 10) kick(next);
-        if (s === 4 || s === 12) hiss(next, 0.14, 0.22, 'bandpass', 1800);
-        if (s % 2 === 0) hiss(next, 0.035, s % 4 === 2 ? 0.07 : 0.04, 'highpass', 7000);
-        if (BASS[s] !== null) tone(mtof(root + BASS[s]), next, STEP * 0.9, 'sawtooth', 0.13, 600);
-        if (s === 6 || s === 14) {
-          const third = MINOR[bar] ? 3 : 4;
-          for (const iv of [12, 12 + third, 19]) tone(mtof(root + iv), next, STEP * 1.2, 'square', 0.025, 2400);
-        }
-        if (bar === 3 && s >= 12 && s % 2 === 0) tone(mtof(root + 24 + (s - 12)), next, STEP * 0.8, 'triangle', 0.04);
+        const s = step % 16, bar = Math.floor(step / 16), c = bar % 4, refrain = bar % 12 >= 8;
+        if (KICK[s]) kick(next);
+        if (SNARE[s]) hiss(next, 0.14, 0.22, 'bandpass', 1800);
+        if (HAT[s]) hiss(next, 0.035, s % 4 === 2 ? 0.07 : 0.04, 'highpass', 7000);
+        if (BASSP[s]) tone(mtof(BASSN[c]), next, 0.3, 'sawtooth', 0.16, 600);
+        if (STAB[s]) for (const n of CHORDS[c]) tone(mtof(n + 12), next, 0.22, 'triangle', 0.05, 2400);
+        if (refrain && HOOK[s]) tone(mtof(HOOK[s]), next, 0.16, 'square', 0.05, 2400);
         next += STEP; step++;
       }
     }
