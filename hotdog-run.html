@@ -2082,22 +2082,67 @@ function drawLadderScene(dt) {
   const targetCam = Math.max(0, H * 0.55 - dogY);
   lad.cam += (targetCam - lad.cam) * Math.min(1, dt * 5);
 
+  // the sky gets a deeper blue the higher you climb, with clouds drifting past
+  const high = clamp(lad.cam / (H * 2), 0, 1);
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#4fb0ff'); g.addColorStop(1, '#cdeeff');
+  g.addColorStop(0, high > 0.3 ? '#2f86e8' : '#4fb0ff'); g.addColorStop(1, '#cdeeff');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const hg = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+  hg.addColorStop(0, `rgba(20,60,140,${0.3 * high})`); hg.addColorStop(1, 'rgba(20,60,140,0)');
+  ctx.fillStyle = hg; ctx.fillRect(0, 0, W, H * 0.7);
+  for (let k = 0; k < 6; k++) {
+    const span = W + 240, cxl = ((k * 0.37 * span + time * (8 + k * 2)) % span) - 120;
+    const cyl = ((k * 173 + lad.cam * 0.35) % (H + 200)) - 100, cs = 14 + (k % 3) * 5;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (const [dx, dy, r] of [[-1.3, 0.25, 0.75], [-0.5, -0.2, 1], [0.5, -0.05, 0.9], [1.3, 0.3, 0.65]]) { ctx.beginPath(); ctx.arc(cxl + dx * cs, cyl + dy * cs, r * cs, 0, Math.PI * 2); ctx.fill(); }
+  }
 
   ctx.save();
   ctx.translate(0, lad.cam);
   const topY = groundY - (L + 0.6) * sp;
-  // ground
+  // grassy ground with tufts and flowers
   ctx.fillStyle = '#6cc25a'; ctx.fillRect(0, groundY, W, H);
-  // tower behind the ladder
-  ctx.fillStyle = '#b08968'; ctx.fillRect(cx - 110, topY, 220, groundY - topY);
-  ctx.fillStyle = 'rgba(0,0,0,0.06)';
-  for (let y = groundY - 30; y > topY; y -= 30) ctx.fillRect(cx - 110, y, 220, 3);
-  // platform + chest at the top
+  ctx.fillStyle = '#5fb54e'; ctx.fillRect(0, groundY, W, 6);
+  for (let k = 0; k < 18; k++) {
+    const gx = (k * 61.7) % W, gy = groundY + 14 + (k * 37) % 60;
+    if (k % 3) { ctx.strokeStyle = '#4fa944'; ctx.lineWidth = 2; for (const d of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(gx + d * 3, gy); ctx.lineTo(gx + d * 6, gy - 10 - (d === 0) * 4); ctx.stroke(); } }
+    else { ctx.fillStyle = ['#ff8fc7', '#ffd60a', '#ffffff'][k % 3 === 0 ? (k / 3) % 3 : 0]; for (let q = 0; q < 5; q++) { const a = q * 1.2566; ctx.beginPath(); ctx.arc(gx + Math.cos(a) * 4, gy - 8 + Math.sin(a) * 4, 3, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = '#ffb703'; ctx.beginPath(); ctx.arc(gx, gy - 8, 2.5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // a stone tower behind the ladder: bricks, little windows and battlements on top
+  const tl = cx - 110, tw = 220;
+  ctx.fillStyle = '#b8a48a'; ctx.fillRect(tl, topY, tw, groundY - topY);
+  const bh = 18, bw = 36;
+  for (let row = 0, y = groundY - bh; y > topY - bh; row++, y -= bh) {
+    for (let x = tl - (row % 2) * bw / 2; x < tl + tw; x += bw) {
+      const h = Math.abs(Math.sin(row * 12.9 + x * 0.37)) % 1;
+      ctx.fillStyle = `rgb(${170 + h * 25 | 0},${150 + h * 22 | 0},${122 + h * 18 | 0})`;
+      const x0 = Math.max(tl, x + 1), x1 = Math.min(tl + tw, x + bw - 1), y0 = Math.max(topY, y + 1);
+      if (x1 > x0) ctx.fillRect(x0, y0, x1 - x0, y + bh - 1 - y0);
+    }
+  }
+  for (let wy = groundY - 120; wy > topY + 40; wy -= 170) {
+    for (const wx of [tl + 22, tl + tw - 44]) {
+      ctx.fillStyle = '#3d3a4a'; rr(ctx, wx, wy, 22, 32, 11); ctx.fill();
+      ctx.fillStyle = 'rgba(255,230,140,0.35)'; rr(ctx, wx + 4, wy + 6, 14, 22, 7); ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#a8957c';
+  for (let x = tl - 10; x < tl + tw + 10; x += 30) ctx.fillRect(x, topY - 34, 18, 26);
+  // platform + chest at the top, with golden rays turning behind it
   ctx.fillStyle = '#7f5539'; ctx.fillRect(cx - 130, topY - 10, 260, 14);
   const open = lad.top ? Math.min(1, lad.doneT * 2) : 0;
+  ctx.save(); ctx.translate(cx, topY - 44); ctx.rotate(time * 0.4);
+  ctx.fillStyle = `rgba(255,214,90,${0.18 + 0.3 * open})`;
+  const rayLen = 90 + 80 * open;
+  for (let k = 0; k < 10; k++) { ctx.rotate(Math.PI / 5); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(rayLen, -12); ctx.lineTo(rayLen, 12); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  for (let k = 0; k < 5; k++) {                     // twinkling sparkles round the chest
+    const a = time * 1.3 + k * 1.26, rad = 52 + Math.sin(time * 2 + k) * 8, tw2 = Math.abs(Math.sin(time * 4 + k * 2));
+    const sx = cx + Math.cos(a) * rad, sy = topY - 44 + Math.sin(a) * rad * 0.6, ss = 3 + tw2 * 4;
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * tw2})`;
+    ctx.beginPath(); ctx.moveTo(sx, sy - ss); ctx.lineTo(sx + ss * 0.3, sy); ctx.lineTo(sx, sy + ss); ctx.lineTo(sx - ss * 0.3, sy); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx - ss, sy); ctx.lineTo(sx, sy + ss * 0.3); ctx.lineTo(sx + ss, sy); ctx.lineTo(sx, sy - ss * 0.3); ctx.closePath(); ctx.fill();
+  }
   drawChest(ctx, cx, topY - 40, 70, open);
   // ladder rails
   const lw = 62;
@@ -2138,6 +2183,21 @@ function drawLadderScene(dt) {
   for (const c of lad.coins) drawCoin(ctx, cx + c.x, topY - 50 + c.y, 8);
   ctx.restore();
 
+  // confetti shower when you reach the treasure
+  if (lad.top) {
+    if (!lad.confetti) {
+      const cols = ['#ff5a5f', '#ffd60a', '#2fd16b', '#2f8cff', '#ff7ac6', '#9b5de5'];
+      lad.confetti = [];
+      for (let k = 0; k < 90; k++) lad.confetti.push({ x: Math.random() * W, y: -20 - Math.random() * H * 0.6, vy: 90 + Math.random() * 120, sw: Math.random() * 6, c: cols[k % cols.length], w: 6 + Math.random() * 5 });
+    }
+    for (const c of lad.confetti) {
+      c.y += c.vy * dt; c.sw += dt * 5;
+      if (c.y > H + 20) continue;
+      ctx.save(); ctx.translate(c.x + Math.sin(c.sw) * 14, c.y); ctx.rotate(c.sw);
+      ctx.fillStyle = c.c; ctx.fillRect(-c.w / 2, -c.w * 0.3, c.w, c.w * 0.6 * Math.abs(Math.cos(c.sw)));
+      ctx.restore();
+    }
+  }
   // ladder HUD (hidden while the puppies lick the screen)
   if (lad.top && lad.doneT > LICK_START) { drawLicks(); return; }
   ctx.fillStyle = 'rgba(255,255,255,0.88)'; rr(ctx, 64, 16, W - 80, 56, 16); ctx.fill();

@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 14 November 2026
 
+- **A grand treasure tower!** The tower at the end is now made of real stone bricks, with little glowing windows and castle battlements on top. Golden rays shine from behind the treasure chest, sparkles twinkle round it, clouds float by as you climb, and when you reach the top, confetti rains down!
 - **Gold coins on the road!** Shiny spinning coins now sit along the road. Steer through a line of them to grab them all, and when they float up in a high arch, press JUMP to reach the top ones. You keep the coins you grab even if you lose the level. Spend them in the Shop or the Doggie Store!
 
 ## 13 November 2026
