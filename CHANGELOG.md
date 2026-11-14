@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 14 November 2026
 
+- **Collect stars!** When you reach the treasure you now get stars: ★ for making it, ★★ if you have lots of puppies to spare, and ★★★ if you have loads left over. Your best stars for each level show on the menu, so you can go back and try to get 3 stars everywhere!
 - **A smarter-looking hot dog!** Our hero now has a toasty golden bun, a shiny sausage with ketchup AND mustard, cute floppy ears, little paw pads, a white tip on his waggy tail, and a blue collar with a gold tag.
 - **Ready, steady, GO!** Every level now starts with a big 3, 2, 1 countdown with little beeps, then a green GO! so you're ready before the hot dog starts running.
 - **A better progress bar!** At the top of the screen, a little hot dog now runs along the bar towards a treasure chest, so you can see how far you've got. Blue dots show where the squares are coming up, and gold dots mean a Power Leash!
