@@ -487,10 +487,12 @@ function airAt(z) {
   for (const j of jumps) if (z > j.z0 && z < j.z0 + j.len) h = Math.max(h, JUMP_HEIGHT * Math.sin(Math.PI * (z - j.z0) / j.len));
   return h;
 }
+let jumpBufferAt = -9;   // a JUMP tapped just before landing is remembered for a moment
 function doJump() {
   if (state !== 'run') return;
   const last = jumps[jumps.length - 1];
-  if (last && player.z < last.z0 + last.len) return;   // already in the air
+  if (last && player.z < last.z0 + last.len) { jumpBufferAt = time; return; }   // still in the air: jump again on landing
+  jumpBufferAt = -9;
   jumps.push({ z0: player.z, len: player.speed * JUMP_TIME });
   boing();
   const b = document.getElementById('jumpBtn'); b.classList.add('pressed'); setTimeout(() => b.classList.remove('pressed'), 120);
@@ -504,7 +506,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: levelSpeed(lv), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1; lossBy = {};
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; jumpBufferAt = -9; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1; lossBy = {};
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
   if (save.inv.biscuits > 0) { save.inv.biscuits--; armour += 10; addFloat(0, 3.4, 5, 'Biscuits +10 🛡', '#ffb703'); }
@@ -951,6 +953,10 @@ function updateRun(dt) {
   }
 
   // Holes: puppies that run over one fall in; the hot dog just hops over
+  { // buffered jump: if JUMP was tapped up to 0.3s before landing, jump as soon as the hot dog touches down
+    const lj = jumps[jumps.length - 1];
+    if (time - jumpBufferAt < 0.3 && (!lj || player.z >= lj.z0 + lj.len)) doJump();
+  }
   player.jump = airAt(player.z);
   jumps = jumps.filter(j => j.z0 + j.len > player.z - 15);
   for (const o of objs) {

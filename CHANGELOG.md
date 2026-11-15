@@ -2,6 +2,10 @@
 
 Every few hours the game gets one little improvement. The newest is at the top.
 
+## 16 November 2026
+
+- **Jumping feels better.** If you tap JUMP just before the hot dog lands, the game now remembers it and jumps again the moment he touches the ground, so quick double-hops work every time.
+
 ## 15 November 2026
 
 - **Scarier-looking saws!** The spinning saws now sit in a yellow-and-black striped frame, the steel blade shines as it whizzes round, and little orange sparks fly off the bottom. Keep those puppies away!
