@@ -1254,10 +1254,12 @@ function outlinedText(c, text, x, y, size, fill, stroke) {
   c.strokeText(text, x, y); c.fillStyle = fill; c.fillText(text, x, y);
 }
 
+const PUP_COLLARS = ['#e63946', '#2f8cff', '#2fd16b', '#ffd23f', '#9b5de5', '#ff7ac6'];
 function drawPuppy(c, x, y, s, coat, spot, ph, running) {
   if (s < 3) { c.fillStyle = coat[0]; c.fillRect(x - 1, y - 2, 2, 2); return; }
   const bob = running ? Math.abs(Math.sin(time * 16 + ph)) * 0.05 * s : 0;
   const leg = running ? Math.sin(time * 16 + ph) * 0.05 * s : 0;
+  const detail = s > 6, ow = Math.max(1, 0.025 * s), line = 'rgba(40,20,10,0.4)';
   c.fillStyle = 'rgba(0,0,0,0.18)'; ellipse(c, x, y, 0.2 * s, 0.07 * s); c.fill();
   const by = y - 0.2 * s - bob;
   // legs
@@ -1266,20 +1268,26 @@ function drawPuppy(c, x, y, s, coat, spot, ph, running) {
   ellipse(c, x + 0.13 * s, by - 0.08 * s - leg, 0.06 * s, 0.05 * s); c.fill();
   ellipse(c, x - 0.13 * s, by + 0.12 * s - leg, 0.06 * s, 0.05 * s); c.fill();
   ellipse(c, x + 0.13 * s, by + 0.12 * s + leg, 0.06 * s, 0.05 * s); c.fill();
-  // waggy tail
+  // waggy tail with a pale tip
+  const tx = x + Math.sin(time * 22 + ph) * 0.1 * s, ty = by + 0.3 * s;
   c.strokeStyle = coat[1]; c.lineWidth = Math.max(1, 0.05 * s); c.lineCap = 'round';
-  c.beginPath(); c.moveTo(x, by + 0.16 * s); c.lineTo(x + Math.sin(time * 22 + ph) * 0.1 * s, by + 0.3 * s); c.stroke();
-  // body
+  c.beginPath(); c.moveTo(x, by + 0.16 * s); c.lineTo(tx, ty); c.stroke();
+  if (detail) { c.fillStyle = 'rgba(255,245,230,0.85)'; c.beginPath(); c.arc(tx, ty, 0.03 * s, 0, Math.PI * 2); c.fill(); }
+  // body with a soft outline and a little shine
   c.fillStyle = coat[0]; ellipse(c, x, by, 0.15 * s, 0.2 * s); c.fill();
-  c.strokeStyle = 'rgba(0,0,0,0.15)'; c.lineWidth = 1; c.stroke();
+  c.strokeStyle = line; c.lineWidth = ow; c.stroke();
   if (spot) { c.fillStyle = coat[1]; ellipse(c, x + 0.04 * s, by + 0.03 * s, 0.06 * s, 0.07 * s); c.fill(); }
-  // head + ears
-  const hy = by - 0.24 * s;
+  if (detail) { c.fillStyle = 'rgba(255,255,255,0.22)'; ellipse(c, x - 0.05 * s, by - 0.06 * s, 0.04 * s, 0.09 * s); c.fill(); }
+  // head + floppy ears that flap as they run
+  const hy = by - 0.24 * s, flap = running ? Math.sin(time * 16 + ph) * 0.015 * s : 0;
   c.fillStyle = coat[1];
-  ellipse(c, x - 0.12 * s, hy + 0.03 * s, 0.05 * s, 0.1 * s); c.fill();
-  ellipse(c, x + 0.12 * s, hy + 0.03 * s, 0.05 * s, 0.1 * s); c.fill();
+  ellipse(c, x - 0.12 * s, hy + 0.03 * s + flap, 0.05 * s, 0.1 * s); c.fill();
+  ellipse(c, x + 0.12 * s, hy + 0.03 * s - flap, 0.05 * s, 0.1 * s); c.fill();
+  // a little coloured collar
+  if (detail) { c.fillStyle = PUP_COLLARS[Math.floor(ph * 7) % PUP_COLLARS.length]; rr(c, x - 0.085 * s, hy + 0.085 * s, 0.17 * s, 0.04 * s, 0.02 * s); c.fill(); }
   c.fillStyle = coat[0]; c.beginPath(); c.arc(x, hy, 0.11 * s, 0, Math.PI * 2); c.fill();
-  c.strokeStyle = 'rgba(0,0,0,0.15)'; c.stroke();
+  c.strokeStyle = line; c.lineWidth = ow; c.stroke();
+  if (detail) { c.fillStyle = 'rgba(255,255,255,0.25)'; ellipse(c, x - 0.035 * s, hy - 0.04 * s, 0.035 * s, 0.025 * s); c.fill(); }
   if (s > 8) drawHat(c, x, hy, 0.11 * s, wearing('head'));
 }
 
