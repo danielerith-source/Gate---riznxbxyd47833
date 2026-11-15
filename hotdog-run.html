@@ -1460,10 +1460,25 @@ function drawDogSide(c, x, y, s) {
 }
 
 function drawSaw(o, p) {
-  const r = o.r * p.s;
+  const r = o.r * p.s, s = p.s;
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.fillStyle = '#5b6577'; ctx.fillRect(-0.08 * p.s, 0, 0.16 * p.s, o.r * p.s);
+  // sturdy frame either side of the blade: yellow-and-black warning stripes and an axle through the middle
+  const lw = 0.16 * s, lx = r * 1.1, gh = o.r * s;
+  ctx.fillStyle = '#4a5160'; ctx.fillRect(-lx, -0.05 * s, lx * 2, 0.1 * s);            // axle
+  for (const side of [-1, 1]) {
+    const x0 = side * lx - lw / 2;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, -0.12 * s, lw, gh + 0.12 * s); ctx.clip();
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(x0, -0.12 * s, lw, gh + 0.12 * s);
+    ctx.fillStyle = '#2b2b2b';
+    for (let k = -1; k < 12; k++) { const yy = k * 0.2 * s; ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + lw, yy - 0.12 * s); ctx.lineTo(x0 + lw, yy - 0.04 * s); ctx.lineTo(x0, yy + 0.08 * s); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.strokeStyle = '#3b3b3b'; ctx.lineWidth = Math.max(1, 0.025 * s); ctx.strokeRect(x0, -0.12 * s, lw, gh + 0.12 * s);
+    ctx.fillStyle = '#4a5160'; rr(ctx, side * lx - 0.16 * s, gh - 0.05 * s, 0.32 * s, 0.1 * s, 0.04 * s); ctx.fill();   // foot
+  }
+  // speed blur ring behind the blade
+  ctx.strokeStyle = 'rgba(200,210,225,0.35)'; ctx.lineWidth = r * 0.12;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.95, 0, Math.PI * 2); ctx.stroke();
   ctx.rotate(o.rot);
   ctx.beginPath();
   const teeth = 16;
@@ -1473,14 +1488,25 @@ function drawSaw(o, p) {
     i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
   }
   ctx.closePath();
-  const g = ctx.createRadialGradient(0, 0, r * 0.1, 0, 0, r);
-  g.addColorStop(0, '#f4f6fa'); g.addColorStop(1, '#9aa5b5');
+  const g = ctx.createRadialGradient(-r * 0.25, -r * 0.25, r * 0.05, 0, 0, r);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#cfd6e0'); g.addColorStop(1, '#8a95a6');
   ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = '#6b7689'; ctx.lineWidth = Math.max(1, r * 0.04); ctx.stroke();
+  ctx.strokeStyle = '#59647a'; ctx.lineWidth = Math.max(1, r * 0.04); ctx.stroke();
+  // bright shine streak across the steel
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = r * 0.07;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.58, -0.6, 0.3); ctx.stroke();
   ctx.strokeStyle = '#e63946'; ctx.lineWidth = r * 0.08;
   for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(r * 0.25, 0); ctx.lineTo(r * 0.65, 0); ctx.stroke(); }
   ctx.fillStyle = '#3b4252'; ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#9aa5b5'; ctx.beginPath(); ctx.arc(0, 0, r * 0.07, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
+  // a few orange sparks spitting off the bottom of the blade
+  for (let k = 0; k < 4; k++) {
+    const t = ((time * 3 + k * 0.27 + o.z) % 1), ang = 0.4 + k * 0.5;
+    const sx = p.x + Math.cos(ang) * r * (0.9 + t * 0.9) * (k % 2 ? 1 : -1), sy = p.y + r * 0.85 + t * t * 0.6 * s - t * 0.4 * s;
+    ctx.fillStyle = `rgba(255,${170 + k * 15},60,${1 - t})`;
+    ctx.fillRect(sx - 0.03 * s, sy - 0.03 * s, 0.06 * s, 0.06 * s);
+  }
 }
 
 function beam(a, b, w) {
