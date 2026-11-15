@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 15 November 2026
 
+- **How to play, shown on screen.** On levels 1 and 2, while the countdown runs, a little hand shows you how to drag left and right to steer, and a circle shows where the JUMP button will be. Also fixed: when the hot dog is right in the middle, only one square lights up now.
 - **Smarter puppies!** Every puppy now wears its own little coloured collar, has a shiny coat, a white tip on its waggy tail, and ears that flap as it runs.
 - **See which square you'll get!** The blue square the hot dog is heading for now lights up with a bright edge and a bouncing yellow arrow on top, so you know which one you're picking before you get there.
 - **A proper game logo!** The title on the menu is now big and bouncy, in ketchup red, mustard yellow and sausage orange. Three little puppies also trot along behind the hot dog in the menu picture.
