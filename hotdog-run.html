@@ -1598,7 +1598,7 @@ function drawGate(g) {
   if (!a || !b) return;
   const x = a.x, y = b.y, w = b.x - a.x, hh = a.y - b.y;
   const faded = g.used && !g.hit;
-  if (g.op === 'leash') { drawLeashGate(g, x, y, w, hh, a.s, faded); return; }
+  if (g.op === 'leash') { drawLeashGate(g, x, y, w, hh, a.s, faded); if (!faded) drawAim(g, x, y, w, hh, a.s); return; }
   if (g.hit) {                                   // the chosen square flashes white as it shatters
     const age = time - (g.hitTime || 0);
     if (age > 0.25) return;
@@ -1627,6 +1627,19 @@ function drawGate(g) {
   const sym = g.op === '-' ? '−' : g.op;
   // a dark red outline on minus numbers, dark blue on the good ones, so they are easy to tell apart
   outlinedText(ctx, sym + g.val, x + w / 2, y + hh / 2, Math.min(w * 0.38, 1.35 * a.s), '#ffffff', g.op === '-' ? '#8a1130' : '#11408a');
+  drawAim(g, x, y, w, hh, a.s);
+}
+// The square the hot dog is lined up with lights up, with a bouncing arrow, so you can see your pick
+function drawAim(g, x, y, w, hh, s) {
+  if (!player || g.used || !(state === 'run' || state === 'paused')) return;
+  const ahead = g.z - player.z;
+  if (ahead <= 0 || ahead > 30 || player.x < g.x0 - 0.25 || player.x > g.x1 + 0.25) return;
+  const pulse = 0.6 + 0.4 * Math.sin(time * 10);
+  ctx.strokeStyle = `rgba(255,236,140,${0.45 * pulse})`; ctx.lineWidth = Math.max(4, 0.35 * s); ctx.strokeRect(x, y, w, hh);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, 0.12 * s); ctx.strokeRect(x, y, w, hh);
+  const ax = x + w / 2, ay = y - Math.max(6, 0.35 * s) - Math.abs(Math.sin(time * 8)) * 0.25 * s, as = Math.max(7, 0.35 * s);
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#3b1d0e'; ctx.lineWidth = Math.max(1.5, as * 0.18); ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(ax - as, ay - as * 0.9); ctx.lineTo(ax + as, ay - as * 0.9); ctx.lineTo(ax, ay + as * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 // The square you pick bursts into little pieces of sparkly blue glass
 function shatterGate(g) {
