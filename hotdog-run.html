@@ -43,6 +43,13 @@
     box-shadow: 0 12px 40px rgba(0,0,0,0.3);
   }
   h1 { margin: 0 0 4px; font-size: 30px; font-weight: 900; letter-spacing: -0.02em; }
+  /* Game logo: chunky letters in ketchup, mustard and sausage colours with a dark outline */
+  .logo { font-size: 36px; letter-spacing: 0.01em; line-height: 1.05; display: flex; flex-wrap: wrap; justify-content: center; gap: 0 10px; }
+  .logo .w { display: inline-flex; }
+  .logo .l { display: inline-block; color: var(--lc); animation: logobob 1.6s ease-in-out infinite; animation-delay: var(--d);
+    text-shadow: -2px -2px 0 #3b1d0e, 2px -2px 0 #3b1d0e, -2px 2px 0 #3b1d0e, 2px 2px 0 #3b1d0e, 0 4px 0 #3b1d0e; }
+  @keyframes logobob { 0%, 100% { transform: translateY(0) rotate(var(--r)); } 50% { transform: translateY(-4px) rotate(var(--r)); } }
+  @media (prefers-reduced-motion: reduce) { .logo .l { animation: none; transform: rotate(var(--r)); } }
   h2 { margin: 4px 0 6px; font-size: 26px; font-weight: 900; }
   .sub { color: var(--muted); font-size: 14px; margin: 0 0 8px; line-height: 1.4; }
   .row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px 0; }
@@ -128,7 +135,7 @@
 
 <div id="menu" class="overlay">
   <div class="card">
-    <h1>Hot Doggy Run</h1>
+    <h1 class="logo" id="logo" aria-label="Hot Doggy Run">Hot Doggy Run</h1>
     <canvas id="dogPreview" width="240" height="120" style="width:240px;height:120px"></canvas>
     <div class="coins"><span class="coin-dot"></span><span id="menuCoins">0</span> coins</div>
     <div class="row">
@@ -2401,13 +2408,38 @@ const pctx = pv.getContext('2d');
   const d = Math.min(2, window.devicePixelRatio || 1);
   pv.width = 240 * d; pv.height = 120 * d; pctx.setTransform(d, 0, 0, d, 0, 0);
 })();
+// Build the bouncy logo letters (ketchup, mustard, sausage colours, each a little tilted)
+(function buildLogo() {
+  const el = document.getElementById('logo'), cols = ['#e63946', '#ffd60a', '#f08a4b'];
+  let k = 0;
+  el.innerHTML = el.textContent.split(' ').map(w => '<span class="w" aria-hidden="true">' + [...w].map(ch => {
+    const i = k++;
+    return `<span class="l" style="--lc:${cols[i % 3]};--d:${(i * 0.09).toFixed(2)}s;--r:${(i % 2 ? 4 : -4)}deg">${ch}</span>`;
+  }).join('') + '</span>').join('');
+})();
+// Little puppies trotting along behind the hot dog in the menu picture
+function drawPuppySide(c, x, y, s, coat, ph) {
+  const t = performance.now() / 1000, step = Math.sin(t * 12 + ph);
+  c.fillStyle = 'rgba(0,0,0,0.12)'; ellipse(c, x, y + 0.42 * s, 0.6 * s, 0.08 * s); c.fill();
+  c.fillStyle = coat[1];
+  for (const [lx, p] of [[-0.3, 1], [0.3, -1]]) rr(c, x + lx * s - 0.07 * s + p * step * 0.06 * s, y + 0.05 * s, 0.14 * s, 0.35 * s, 0.06 * s), c.fill();
+  c.strokeStyle = coat[1]; c.lineWidth = 0.09 * s; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x - 0.48 * s, y - 0.05 * s); c.lineTo(x - 0.65 * s, y - 0.3 * s + Math.sin(t * 16 + ph) * 0.08 * s); c.stroke();
+  c.fillStyle = coat[0]; ellipse(c, x, y - 0.02 * s, 0.52 * s, 0.26 * s); c.fill();
+  c.beginPath(); c.arc(x + 0.5 * s, y - 0.28 * s, 0.24 * s, 0, Math.PI * 2); c.fill();
+  c.fillStyle = coat[1]; ellipse(c, x + 0.4 * s, y - 0.2 * s, 0.09 * s, 0.17 * s); c.fill();
+  c.fillStyle = '#1b1b1b'; c.beginPath(); c.arc(x + 0.6 * s, y - 0.32 * s, 0.035 * s, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(x + 0.74 * s, y - 0.24 * s, 0.045 * s, 0, Math.PI * 2); c.fill();
+}
 function drawPreview() {
   if (!document.getElementById('store').classList.contains('hidden')) {
     spctx.clearRect(0, 0, 260, 130);
     drawDogSide(spctx, 118, 78 + Math.abs(Math.sin(performance.now() / 160)) * -4, 74);
   }
   pctx.clearRect(0, 0, 240, 120);
-  drawDogSide(pctx, 110, 62 + Math.abs(Math.sin(performance.now() / 160)) * -4, 70);
+  const tt = performance.now();
+  drawDogSide(pctx, 142, 62 + Math.abs(Math.sin(tt / 160)) * -4, 58);
+  [[20, 2], [44, 0], [66, 5]].forEach(([px, ci], k) => drawPuppySide(pctx, px, 78 + Math.abs(Math.sin(tt / 150 + k)) * -3, 15, COATS[ci], k * 1.7));
 }
 function updateLeashBtn() {
   const b = document.getElementById('leashBtn');
