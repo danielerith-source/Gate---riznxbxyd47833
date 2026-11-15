@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 15 November 2026
 
+- **Helpful tips!** If you lose a level or don't quite reach the treasure, the game now tells you what took the most puppies and how to beat it. For example: "The spikes got the most puppies. Wait for them to go down, or JUMP over!"
 - **A bouncy puppy counter!** The number above the hot dog now has a little paw print. It bounces up big and green when you get more puppies, and wobbles red when you lose some, so you always know what just happened.
 
 ## 14 November 2026

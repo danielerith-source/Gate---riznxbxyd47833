@@ -112,6 +112,8 @@
     border-radius: 12px; background: rgba(255,255,255,0.85); color: #1d2433; font-size: 18px;
   }
   .stat { font-size: 16px; margin: 6px 0; }
+  .tip { font-size: 14px; font-weight: 700; color: var(--ink); background: var(--btn2); border-radius: 12px; padding: 8px 10px; margin: 6px 0 10px; line-height: 1.35; }
+  .tip:empty { display: none; }
   .big { font-size: 34px; font-weight: 900; color: var(--accent); }
 </style>
 </head>
@@ -190,6 +192,7 @@
     <h2 id="resTitle">Treasure!</h2>
     <div class="res-stars" id="resStars" aria-live="polite"></div>
     <p class="sub" id="resSub"></p>
+    <p class="tip" id="resTip"></p>
     <div class="big"><span class="coin-dot" style="width:24px;height:24px"></span>+<span id="resCoins">0</span></div>
     <div class="stat" id="resSteps"></div>
     <button class="primary" id="resMain">Next level</button>
@@ -449,6 +452,23 @@ function makeLevel(lv) {
 let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
+// What took the most puppies this level, for a helpful tip when you lose
+let lossBy = {};
+const LOSS_TIPS = {
+  saw: 'The spinning saws got the most puppies. Steer round them!',
+  laser: 'The lasers got the most puppies. Run through the green gap, or JUMP over the beam!',
+  spin: 'The spinning laser got the most puppies. Keep to the side away from the beam, or JUMP!',
+  spikes: 'The spikes got the most puppies. Wait for them to go down, or JUMP over!',
+  hole: 'The holes swallowed the most puppies. Steer round them, or JUMP!',
+  hammer: 'The hammers got the most puppies. Wait for the hammer to swing past!',
+  boulder: 'The boulders squashed the most puppies. Move out of their way!',
+  minus: 'The minus squares took the most puppies. Look for the + squares instead!'
+};
+function lossTip() {
+  let best = null, n = 0;
+  for (const k in lossBy) if (lossBy[k] > n) { n = lossBy[k]; best = k; }
+  return best ? '💡 ' + LOSS_TIPS[best] : '';
+}
 let runCoins = 0, bubbleLast = -1, bubbleMood = 0, bubbleAt = -9;
 let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [], puffs = [], puffT = 0;
 // Jumps happen at a spot on the road: the hot dog takes off there and each puppy
@@ -477,7 +497,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: levelSpeed(lv), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1;
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1; lossBy = {};
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
   if (save.inv.biscuits > 0) { save.inv.biscuits--; armour += 10; addFloat(0, 3.4, 5, 'Biscuits +10 🛡', '#ffb703'); }
@@ -527,7 +547,7 @@ function burst(x, y, z, color, n) {
 const LEASH_TIME = 5;                       // seconds of invincibility from a Power Leash
 const SNACKS = { biscuit: { armour: 6, label: 'Dog biscuit' }, bacon: { armour: 15, label: 'Bacon!' } };
 let leashT = 0, armour = 0;
-function killMember(i, fall) {
+function killMember(i, fall, cause) {
   const m = members[i];
   if (leashT > 0) return false;                         // Power Leash: nothing can hurt the pack
   if (m.safe > 0) return false;                         // this puppy was just saved by a snack
@@ -542,6 +562,7 @@ function killMember(i, fall) {
   members.splice(i, 1);
   count = Math.max(0, count - rep);
   lossAcc += rep;
+  if (cause) lossBy[cause] = (lossBy[cause] || 0) + rep;
   syncMembers();
   return true;
 }
@@ -864,6 +885,7 @@ function updateRun(dt) {
       const before = count;
       count = Math.min(99999, Math.floor(applyOp(count, hit)));
       const d = count - before;
+      if (d < 0) lossBy.minus = (lossBy.minus || 0) - d;
       addFloat(player.x, 2.6, player.z + 1, (d >= 0 ? '+' : '−') + Math.abs(d), d >= 0 ? '#2fd16b' : '#ff4d4d');
       if (d > 0) burst(player.x, 1, player.z, '#7cc4ff', 12);
       woof(d >= 0); player.woofT = 0.8;
@@ -879,7 +901,7 @@ function updateRun(dt) {
     if (Math.abs(s.z - player.z) > 14) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - s.z) < 0.35 && Math.abs(m.x - s.cx) < s.r * 0.85) killMember(i);
+      if (Math.abs(mz - s.z) < 0.35 && Math.abs(m.x - s.cx) < s.r * 0.85) killMember(i, false, 'saw');
     }
   }
 
@@ -890,7 +912,7 @@ function updateRun(dt) {
     if (Math.abs(o.z - player.z) > 14) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 + 0.1 && airAt(mz) < 0.3) killMember(i);
+      if (Math.abs(mz - o.z) < 0.3 && Math.abs(m.x - o.cx) > o.gap / 2 + 0.1 && airAt(mz) < 0.3) killMember(i, false, 'laser');
     }
   }
   // Spinning lasers: a beam turning round a post
@@ -901,7 +923,7 @@ function updateRun(dt) {
     const c = Math.cos(o.ang), sn = Math.sin(o.ang);
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], dx = m.x - o.x, dz = player.z + m.oz - o.z;
-      if (Math.abs(dx * c + dz * sn) <= o.len && Math.abs(dx * sn - dz * c) < 0.3 && airAt(player.z + m.oz) < 0.3) killMember(i);
+      if (Math.abs(dx * c + dz * sn) <= o.len && Math.abs(dx * sn - dz * c) < 0.3 && airAt(player.z + m.oz) < 0.3) killMember(i, false, 'spin');
     }
   }
   // Spike traps that pop up and down
@@ -917,7 +939,7 @@ function updateRun(dt) {
     if (!o.up || Math.abs(o.z - player.z) > 16) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (mz >= o.z && mz <= o.z + o.d && m.x >= o.x0 && m.x <= o.x1 && airAt(mz) < 0.5 * (o.h || 1)) killMember(i);
+      if (mz >= o.z && mz <= o.z + o.d && m.x >= o.x0 && m.x <= o.x1 && airAt(mz) < 0.5 * (o.h || 1)) killMember(i, false, 'spikes');
     }
   }
 
@@ -931,7 +953,7 @@ function updateRun(dt) {
     }
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (mz > o.z + 0.15 && mz < o.z + o.d - 0.15 && m.x > o.x0 + 0.15 && m.x < o.x1 - 0.15 && airAt(mz) < 0.05) killMember(i, true);
+      if (mz > o.z + 0.15 && mz < o.z + o.d - 0.15 && m.x > o.x0 + 0.15 && m.x < o.x1 - 0.15 && airAt(mz) < 0.05) killMember(i, true, 'hole');
     }
   }
   // Swinging hammers: a big mallet swinging side to side across the road
@@ -942,7 +964,7 @@ function updateRun(dt) {
     if (Math.abs(o.z - player.z) > 14 || o.hy > 1.4) continue;
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], mz = player.z + m.oz;
-      if (Math.abs(mz - o.z) < 0.55 && Math.abs(m.x - o.hx) < 0.8) killMember(i);
+      if (Math.abs(mz - o.z) < 0.55 && Math.abs(m.x - o.hx) < 0.8) killMember(i, false, 'hammer');
     }
   }
   // Rolling boulders: start rolling down the road towards you
@@ -954,7 +976,7 @@ function updateRun(dt) {
     for (let i = members.length - 1; i >= 0; i--) {
       const m = members[i], dx = m.x - o.x, dz = player.z + m.oz - o.z;
       if (dx * dx + dz * dz < o.r * o.r) {
-        killMember(i);
+        killMember(i, false, 'boulder');
         // the boulder smashes to bits after squashing a few puppies
         if (++o.hits >= 6) { o.gone = true; burst(o.x, o.r, o.z, '#8a7f6b', 24); break; }
       }
@@ -1167,7 +1189,8 @@ function loseLevel() {
   state = 'result'; lad = null;
   ['quitBtn', 'jumpBtn', 'leashBtn', 'pauseBtn'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('resTitle').textContent = 'Oh no!';
-  document.getElementById('resSub').textContent = 'All the puppies got lost! Start the level again. Pick the good blue squares and keep your puppies safe.';
+  document.getElementById('resSub').textContent = 'All the puppies got lost! Start the level again.';
+  document.getElementById('resTip').textContent = lossTip() || '💡 Pick the good blue squares and keep your puppies safe.';
   document.getElementById('resCoins').parentElement.style.display = 'none';
   document.getElementById('resSteps').textContent = `Level ${level.lv}`;
   const main = document.getElementById('resMain');
@@ -1196,7 +1219,8 @@ function finishLevel() {
   document.getElementById('resTitle').textContent = top ? 'Treasure!' : 'So close!';
   document.getElementById('resSub').textContent = top
     ? 'You reached the top of the ladder and opened the chest!'
-    : 'Not enough puppies to reach the chest. Pick bigger blue squares and keep your puppies safe!';
+    : 'Not enough puppies to reach the chest.';
+  document.getElementById('resTip').textContent = top ? '' : (lossTip() || '💡 Pick bigger blue squares to get more puppies!');
   document.getElementById('resCoins').textContent = earned;
   document.getElementById('resSteps').textContent = `Ladder: ${lad.step} / ${level.steps} steps` + (top && count > 0 ? ` · ${count} puppies spare` : '') + (runCoins ? ` · ${runCoins} road coins` : '');
   const main = document.getElementById('resMain');
