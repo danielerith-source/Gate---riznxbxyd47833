@@ -449,7 +449,7 @@ function makeLevel(lv) {
 let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
-let runCoins = 0;
+let runCoins = 0, bubbleLast = -1, bubbleMood = 0, bubbleAt = -9;
 let lossAcc = 0, lossTimer = 0, squeeze = 1, trail = [], fallers = [], puffs = [], puffT = 0;
 // Jumps happen at a spot on the road: the hot dog takes off there and each puppy
 // jumps when it reaches the same spot, so the whole pack hops over the same thing.
@@ -477,7 +477,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: levelSpeed(lv), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0;
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1;
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
   if (save.inv.biscuits > 0) { save.inv.biscuits--; armour += 10; addFloat(0, 3.4, 5, 'Biscuits +10 🛡', '#ffb703'); }
@@ -1941,12 +1941,28 @@ function drawRunScene() {
     // crowd counter bubble
     const p = P(player.x, 2.2 + (player.jump || 0), player.z);
     if (p) {
+      // the bubble bounces green when you gain puppies and wobbles red when you lose some
+      if (bubbleLast < 0) bubbleLast = count;
+      if (count !== bubbleLast) { bubbleMood = count > bubbleLast ? 1 : -1; bubbleAt = time; bubbleLast = count; }
+      const age = time - bubbleAt, live = age < 0.4 ? 1 - age / 0.4 : 0;
+      const sc = bubbleMood > 0 ? 1 + 0.35 * Math.sin(Math.PI * Math.min(1, age / 0.4)) * (live > 0 ? 1 : 0) : 1;
+      const shx = bubbleMood < 0 ? Math.sin(age * 60) * 0.12 * p.s * live : 0;
       const txt = String(count);
-      ctx.font = `900 ${Math.round(0.6 * p.s)}px system-ui, sans-serif`;
-      const tw = ctx.measureText(txt).width + 0.9 * p.s, th = 0.8 * p.s;
-      ctx.fillStyle = '#2f8cff'; rr(ctx, p.x - tw / 2, p.y - th / 2, tw, th, th / 2); ctx.fill();
+      ctx.save(); ctx.translate(p.x + shx, p.y); ctx.scale(sc, sc);
+      ctx.font = `900 ${Math.round(0.55 * p.s)}px system-ui, sans-serif`;
+      const iw = 0.42 * p.s, tw = ctx.measureText(txt).width + 0.9 * p.s + iw, th = 0.8 * p.s;
+      ctx.fillStyle = live > 0 ? (bubbleMood > 0 ? '#2fbf62' : '#ff4d4d') : '#2f8cff';
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+      rr(ctx, -tw / 2, -th / 2, tw, th, th / 2); ctx.fill();
+      ctx.shadowColor = 'transparent';
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-      outlinedText(ctx, txt, p.x, p.y + 1, Math.round(0.55 * p.s), '#fff', '#1d5fbf');
+      // little white paw print
+      const px0 = -tw / 2 + 0.3 * p.s + iw * 0.4, ps = 0.11 * p.s;
+      ctx.fillStyle = '#ffffff';
+      ellipse(ctx, px0, ps * 0.55, ps * 1.05, ps * 0.85); ctx.fill();
+      for (const [dx, dy] of [[-1.05, -0.55], [-0.38, -1.15], [0.38, -1.15], [1.05, -0.55]]) { ctx.beginPath(); ctx.arc(px0 + dx * ps, dy * ps, ps * 0.42, 0, Math.PI * 2); ctx.fill(); }
+      outlinedText(ctx, txt, iw / 2, 1, Math.round(0.55 * p.s), '#fff', live > 0 ? (bubbleMood > 0 ? '#16803f' : '#a3122a') : '#1d5fbf');
+      ctx.restore();
     }
     if (player.woofT > 0) {
       const q = P(player.x + 1.0, 1.5, player.z + 0.8);

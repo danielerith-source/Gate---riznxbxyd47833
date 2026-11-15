@@ -2,6 +2,10 @@
 
 Every few hours the game gets one little improvement. The newest is at the top.
 
+## 15 November 2026
+
+- **A bouncy puppy counter!** The number above the hot dog now has a little paw print. It bounces up big and green when you get more puppies, and wobbles red when you lose some, so you always know what just happened.
+
 ## 14 November 2026
 
 - **Collect stars!** When you reach the treasure you now get stars: ★ for making it, ★★ if you have lots of puppies to spare, and ★★★ if you have loads left over. Your best stars for each level show on the menu, so you can go back and try to get 3 stars everywhere!
