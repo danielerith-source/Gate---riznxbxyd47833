@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 16 November 2026
 
+- **Spikier spikes!** The spike traps now have a yellow-and-black danger border, a shiny metal plate, and sharp spikes with gleaming tips. The plate still flashes red just before the spikes pop up.
 - **A friendly warning.** If you're down to your last 3 puppies, the game says "Careful! Only 2 puppies left!" with a little "uh-oh" sound, so you know to play safe and look for a + square.
 - **Easier-to-see laser gaps.** The safe gap in a laser wall now has green glowing posts, a green patch on the road and arrows pointing the way through. The red laser posts glow and pulse too.
 - **Jumping feels better.** If you tap JUMP just before the hot dog lands, the game now remembers it and jumps again the moment he touches the ground, so quick double-hops work every time.

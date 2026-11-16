@@ -1600,22 +1600,41 @@ function drawSpin(o) {
 function drawSpikes(o) {
   const a = P(o.x0 + 0.08, 0.01, o.z), b = P(o.x1 - 0.08, 0.01, o.z), c2 = P(o.x1 - 0.08, 0.01, o.z + o.d), d = P(o.x0 + 0.08, 0.01, o.z + o.d);
   if (!a || !c2) return;
-  ctx.fillStyle = o.warn ? (Math.sin(time * 30) > 0 ? '#ff8a8a' : '#9aa5b5') : '#7d8597';
-  quad(a, b, c2, d); ctx.fill();
-  ctx.strokeStyle = '#5b6577'; ctx.lineWidth = 1.5; ctx.stroke();
+  // yellow-and-black hazard border
+  const B = 0.18;
+  ctx.fillStyle = '#ffd23f'; quad(a, b, c2, d); ctx.fill();
+  const nStripes = Math.max(2, Math.round((o.x1 - o.x0) / 0.5));
+  ctx.fillStyle = '#2b2b2b';
+  for (const zEdge of [o.z, o.z + o.d - B]) {
+    for (let k = 0; k < nStripes; k += 2) {
+      const x0 = o.x0 + 0.08 + (o.x1 - o.x0 - 0.16) * k / nStripes, x1 = o.x0 + 0.08 + (o.x1 - o.x0 - 0.16) * (k + 1) / nStripes;
+      const p1 = P(x0, 0.012, zEdge), p2 = P(x1, 0.012, zEdge), p3 = P(x1, 0.012, zEdge + B), p4 = P(x0, 0.012, zEdge + B);
+      if (p1 && p3) { quad(p1, p2, p3, p4); ctx.fill(); }
+    }
+  }
+  // the metal plate (flashes red as a warning before the spikes come up)
+  const ia = P(o.x0 + 0.08 + B, 0.014, o.z + B), ib = P(o.x1 - 0.08 - B, 0.014, o.z + B), ic = P(o.x1 - 0.08 - B, 0.014, o.z + o.d - B), id = P(o.x0 + 0.08 + B, 0.014, o.z + o.d - B);
+  if (ia && ic) {
+    ctx.fillStyle = o.warn ? (Math.sin(time * 30) > 0 ? '#ff7a7a' : '#a3acba') : '#8b94a3';
+    quad(ia, ib, ic, id); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+  }
   const stepX = 0.55, stepZ = 0.6;
-  for (let zz = o.z + o.d - 0.3; zz > o.z; zz -= stepZ) {
-    for (let xx = o.x0 + 0.35; xx < o.x1 - 0.1; xx += stepX) {
+  for (let zz = o.z + o.d - 0.35; zz > o.z + 0.15; zz -= stepZ) {
+    for (let xx = o.x0 + 0.38; xx < o.x1 - 0.15; xx += stepX) {
       const p = P(xx, 0, zz);
       if (!p) continue;
       if (o.h > 0.03) {
-        const t = P(xx, 0.55 * o.h, zz);
-        ctx.fillStyle = '#e9ecef';
-        ctx.beginPath(); ctx.moveTo(p.x - 0.13 * p.s, p.y); ctx.lineTo(t.x, t.y); ctx.lineTo(p.x + 0.13 * p.s, p.y); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#adb5bd';
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(t.x, t.y); ctx.lineTo(p.x + 0.13 * p.s, p.y); ctx.closePath(); ctx.fill();
+        const t = P(xx, 0.6 * o.h, zz), w = 0.14 * p.s;
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ellipse(ctx, p.x, p.y, w, w * 0.35); ctx.fill();
+        ctx.fillStyle = '#f1f3f5';                                     // lit side
+        ctx.beginPath(); ctx.moveTo(p.x - w, p.y); ctx.lineTo(t.x, t.y); ctx.lineTo(p.x, p.y + w * 0.2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#9aa3b0';                                     // shadow side
+        ctx.beginPath(); ctx.moveTo(p.x, p.y + w * 0.2); ctx.lineTo(t.x, t.y); ctx.lineTo(p.x + w, p.y); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(t.x, t.y, Math.max(0.8, 0.02 * p.s), 0, Math.PI * 2); ctx.fill();   // glint on the tip
       } else {
         ctx.fillStyle = '#4a5160'; ellipse(ctx, p.x, p.y, 0.07 * p.s, 0.03 * p.s); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'; ellipse(ctx, p.x - 0.02 * p.s, p.y - 0.01 * p.s, 0.025 * p.s, 0.012 * p.s); ctx.fill();
       }
     }
   }
