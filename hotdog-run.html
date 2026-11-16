@@ -727,6 +727,13 @@ function crunch() {             // munching a snack
   for (let k = 0; k < 3; k++) noise(t + k * 0.07, 0.05, 'lowpass', 1800, 0.7, 0.9, sfxBus);
   tone(t + 0.22, 84, 0.12, 'triangle', 0.25, sfxBus); tone(t + 0.3, 88, 0.16, 'triangle', 0.25, sfxBus);
 }
+const BOULDER_WOBBLE = 0.55;    // seconds a boulder wobbles before it starts rolling
+function rumble() {             // a low grumble as a boulder wakes up
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01;
+  noise(t, 0.5, 'lowpass', 160, 1.2, 0.5, sfxBus);
+  tone(t, 31, 0.4, 'sine', 0.2, sfxBus);
+}
 function clink() {              // a snack-tough puppy shrugs off a trap
   if (!actx || muted) return;
   tone(actx.currentTime + 0.005, 96, 0.08, 'triangle', 0.18, sfxBus);
@@ -988,7 +995,11 @@ function updateRun(dt) {
   // Rolling boulders: start rolling down the road towards you
   for (const o of objs) {
     if (o.t !== 'boulder' || o.gone) continue;
-    if (!o.rolling && o.z - player.z < 34) o.rolling = true;
+    // Fair warning: the boulder wobbles and rumbles for a moment before it rolls, and it
+    // starts early enough that you get the same time to dodge on fast levels as on slow ones
+    const close = player.speed + 6, wakeAt = Math.max(34, close * 2.1) + player.speed * BOULDER_WOBBLE;
+    if (!o.rolling && o.wob == null && o.z - player.z < wakeAt) { o.wob = 0; rumble(); }
+    if (!o.rolling && o.wob != null) { o.wob += dt; if (o.wob >= BOULDER_WOBBLE) o.rolling = true; }
     if (o.rolling && o.z > player.z - 12) { o.z -= 6 * dt; o.rot -= 6 * dt / o.r; }
     if (Math.abs(o.z - player.z) > 8) continue;
     for (let i = members.length - 1; i >= 0; i--) {
@@ -1670,9 +1681,18 @@ function drawHammer(o) {
   ctx.fillStyle = '#3b4252'; ctx.beginPath(); ctx.arc(pv.x, pv.y, 0.15 * s, 0, Math.PI * 2); ctx.fill();
 }
 function drawBoulder(o) {
-  const p = P(o.x, o.r, o.z), g0 = P(o.x, 0, o.z);
+  const wob = !o.rolling && o.wob != null ? Math.sin(o.wob * 38) * 0.09 : 0;   // shakes before it rolls
+  const p = P(o.x + wob, o.r, o.z), g0 = P(o.x, 0, o.z);
   if (!p) return;
   const r = o.r * p.s;
+  if (o.wob != null && o.z > player.z + 1) {       // a red warning stripe down the boulder's lane
+    const zn = Math.max(player.z + 3, o.z - 40), hw = o.r * 1.1;
+    const a1 = P(o.x - hw, 0, o.z), b1 = P(o.x + hw, 0, o.z), c1 = P(o.x + hw, 0, zn), d1 = P(o.x - hw, 0, zn);
+    if (a1 && b1 && c1 && d1) {
+      const al = (o.rolling ? 0.18 : 0.28 + 0.16 * Math.sin(time * 18)) * Math.min(1, (o.z - player.z) / 6);
+      quad(a1, b1, c1, d1); ctx.fillStyle = `rgba(230,57,70,${al.toFixed(3)})`; ctx.fill();
+    }
+  }
   ctx.fillStyle = 'rgba(0,0,0,0.2)'; ellipse(ctx, g0.x, g0.y, r * 0.95, r * 0.25); ctx.fill();
   const g = ctx.createRadialGradient(p.x - r * 0.35, p.y - r * 0.35, r * 0.1, p.x, p.y, r);
   g.addColorStop(0, '#c2b8a3'); g.addColorStop(1, '#7a6f5c');

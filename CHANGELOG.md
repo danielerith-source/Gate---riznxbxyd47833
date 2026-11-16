@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 16 November 2026
 
+- **Fairer boulders!** Before a boulder starts rolling it now wobbles and gives a low rumble, and a red stripe shows which lane it's coming down. On the fast levels it wakes up earlier too, so you always get the same time to dodge out of the way.
 - **Spikier spikes!** The spike traps now have a yellow-and-black danger border, a shiny metal plate, and sharp spikes with gleaming tips. The plate still flashes red just before the spikes pop up.
 - **A friendly warning.** If you're down to your last 3 puppies, the game says "Careful! Only 2 puppies left!" with a little "uh-oh" sound, so you know to play safe and look for a + square.
 - **Easier-to-see laser gaps.** The safe gap in a laser wall now has green glowing posts, a green patch on the road and arrows pointing the way through. The red laser posts glow and pulse too.
