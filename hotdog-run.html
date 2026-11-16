@@ -460,7 +460,7 @@ let state = 'menu';
 let level = null, player = null, objs = [], members = [], form = [];
 let count = 1, floats = [], parts = [], time = 0, lad = null, shake = 0;
 // What took the most puppies this level, for a helpful tip when you lose
-let lossBy = {};
+let lossBy = {}, lowWarned = false, peakCount = 0;
 const LOSS_TIPS = {
   saw: 'The spinning saws got the most puppies. Steer round them!',
   laser: 'The lasers got the most puppies. Run through the green gap, or JUMP over the beam!',
@@ -506,7 +506,7 @@ function startLevel(lv) {
   level = makeLevel(lv);
   objs = level.objs.map(o => Object.assign({}, o));
   player = { x: 0, tx: 0, z: 0, speed: levelSpeed(lv), inv: 0, woofT: 0, spinT: 0, spinA: 0, slide: 0, slipT: 0, vx: 0 };
-  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; jumpBufferAt = -9; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1; lossBy = {};
+  count = 1; members = []; floats = []; parts = []; lossAcc = 0; lossTimer = 0; squeeze = 1; trail = []; fallers = []; jumps = []; jumpBufferAt = -9; puffs = []; puffT = 0; leashT = 0; armour = 0; runCoins = 0; bubbleLast = -1; lossBy = {}; lowWarned = false; peakCount = 0;
   // Shop goodies bought earlier are used up at the start of the level
   if (save.inv.pups > 0) { save.inv.pups--; count += 5; addFloat(0, 2.6, 4, 'Puppy pals +5', '#2fd16b'); }
   if (save.inv.biscuits > 0) { save.inv.biscuits--; armour += 10; addFloat(0, 3.4, 5, 'Biscuits +10 🛡', '#ffb703'); }
@@ -699,6 +699,11 @@ function wheee(small) {        // slide-whistle for a banana-skin spin
   o.frequency.setValueAtTime(500 * k, t); o.frequency.exponentialRampToValueAtTime(1400 * k, t + d * 0.45); o.frequency.exponentialRampToValueAtTime(350 * k, t + d);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(small ? 0.12 : 0.35, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + d + 0.02);
+}
+function uhOh() {               // two falling notes: "uh-oh!"
+  if (!actx || muted) return;
+  const t = actx.currentTime + 0.01;
+  tone(t, 79, 0.16, 'triangle', 0.3, sfxBus); tone(t + 0.18, 74, 0.26, 'triangle', 0.3, sfxBus);
 }
 function whimper() {            // a sad little whine when the last puppy is lost
   if (!actx || muted) return;
@@ -1121,6 +1126,14 @@ function updateRun(dt) {
     if (lossAcc > 0) { addFloat(player.x, 2.6, player.z + 1, '−' + lossAcc, '#ff4d4d'); lossAcc = 0; }
   }
 
+  // Running low? Warn once when the pack drops to 3 or fewer (after having had more)
+  peakCount = Math.max(peakCount, count);
+  if (count >= 6) lowWarned = false;
+  if (!lowWarned && peakCount >= 5 && count > 0 && count <= 3) {
+    lowWarned = true;
+    addFloat(player.x, 3.0, player.z + 2, `Careful! Only ${count} ${count === 1 ? 'puppy' : 'puppies'} left!`, '#ff9f1c');
+    uhOh();
+  }
   // No puppies left? The level is lost (after a moment, in case a lost puppy is picked up)
   if (count <= 0) {
     if (!player.lostT) { player.lostT = 0.001; addFloat(player.x, 2.6, player.z + 1, 'Oh no!', '#ff4d4d'); whimper(); }
