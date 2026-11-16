@@ -1525,24 +1525,44 @@ function beam(a, b, w) {
   ctx.strokeStyle = '#ffe3ea'; ctx.lineWidth = Math.max(1, w * 0.35);
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
 }
-function emitter(x, z, h) {
+function emitter(x, z, h, col) {
   const a = P(x, 0, z), b = P(x, h, z);
   if (!a || !b) return;
-  ctx.fillStyle = '#3b4252'; ctx.fillRect(a.x - 0.13 * a.s, b.y, 0.26 * a.s, a.y - b.y);
-  ctx.fillStyle = '#ff2d55'; ctx.beginPath(); ctx.arc(a.x, b.y, 0.12 * a.s, 0, Math.PI * 2); ctx.fill();
+  col = col || '255,45,85';
+  const s = a.s, pulse = 0.75 + 0.25 * Math.sin(time * 8 + x);
+  // metal post with a lighter edge
+  ctx.fillStyle = '#3b4252'; rr(ctx, a.x - 0.13 * s, b.y, 0.26 * s, a.y - b.y, 0.05 * s); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(a.x - 0.1 * s, b.y + 0.05 * s, 0.05 * s, a.y - b.y - 0.1 * s);
+  ctx.fillStyle = '#2b303c'; rr(ctx, a.x - 0.2 * s, a.y - 0.08 * s, 0.4 * s, 0.1 * s, 0.04 * s); ctx.fill();
+  // glowing orb on top with a pulsing halo
+  const gl = ctx.createRadialGradient(a.x, b.y, 0, a.x, b.y, 0.4 * s);
+  gl.addColorStop(0, `rgba(${col},${0.55 * pulse})`); gl.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(a.x, b.y, 0.4 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgb(${col})`; ctx.beginPath(); ctx.arc(a.x, b.y, 0.12 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(a.x - 0.04 * s, b.y - 0.04 * s, 0.04 * s, 0, Math.PI * 2); ctx.fill();
 }
 function drawLaser(o) {
   const y = 0.55, gl = o.cx - o.gap / 2, gr = o.cx + o.gap / 2;
   const a = P(-ROAD - 0.3, y, o.z), b = P(gl, y, o.z), c2 = P(gr, y, o.z), d = P(ROAD + 0.3, y, o.z);
   if (!a) return;
-  // green "safe" glow in the gap
+  // the safe gap: a soft green glow on the road with chevrons pointing through it
+  const q0 = P(gl, 0.02, o.z - 1.2), q1 = P(gr, 0.02, o.z - 1.2), q2 = P(gr, 0.02, o.z + 0.4), q3 = P(gl, 0.02, o.z + 0.4);
+  if (q0 && q2) { ctx.fillStyle = 'rgba(47,209,107,0.22)'; quad(q0, q1, q2, q3); ctx.fill(); }
+  const pulse = 0.55 + 0.45 * Math.sin(time * 6);
+  for (let k = 0; k < 2; k++) {
+    const zc = o.z - 0.9 + k * 0.5, cxw = (gl + gr) / 2, hw = Math.min(0.7, o.gap * 0.25);
+    const l = P(cxw - hw, 0.03, zc), m = P(cxw, 0.03, zc + 0.35), r2 = P(cxw + hw, 0.03, zc);
+    if (!l || !m || !r2) continue;
+    ctx.strokeStyle = `rgba(47,209,107,${0.5 + 0.5 * (k ? pulse : 1 - pulse)})`; ctx.lineWidth = Math.max(2, 0.12 * a.s); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(m.x, m.y); ctx.lineTo(r2.x, r2.y); ctx.stroke();
+  }
   const g0 = P(gl, 0.02, o.z), g1 = P(gr, 0.02, o.z);
-  ctx.strokeStyle = 'rgba(47,209,107,0.7)'; ctx.lineWidth = Math.max(2, 0.12 * a.s);
+  ctx.strokeStyle = 'rgba(47,209,107,0.85)'; ctx.lineWidth = Math.max(2, 0.12 * a.s);
   ctx.beginPath(); ctx.moveTo(g0.x, g0.y); ctx.lineTo(g1.x, g1.y); ctx.stroke();
   beam(a, b, Math.max(2, 0.09 * a.s));
   beam(c2, d, Math.max(2, 0.09 * a.s));
   emitter(-ROAD - 0.3, o.z, 0.9); emitter(ROAD + 0.3, o.z, 0.9);
-  emitter(gl, o.z, 0.7); emitter(gr, o.z, 0.7);
+  emitter(gl, o.z, 0.7, '47,209,107'); emitter(gr, o.z, 0.7, '47,209,107');   // green posts mark the safe gap
 }
 function drawSpin(o) {
   const y = 0.55, minZ = camZ + 0.5;

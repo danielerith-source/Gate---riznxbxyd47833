@@ -4,6 +4,7 @@ Every few hours the game gets one little improvement. The newest is at the top.
 
 ## 16 November 2026
 
+- **Easier-to-see laser gaps.** The safe gap in a laser wall now has green glowing posts, a green patch on the road and arrows pointing the way through. The red laser posts glow and pulse too.
 - **Jumping feels better.** If you tap JUMP just before the hot dog lands, the game now remembers it and jumps again the moment he touches the ground, so quick double-hops work every time.
 
 ## 15 November 2026
